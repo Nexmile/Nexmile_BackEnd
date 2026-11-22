@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Middleware\EnsureServiceScope;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
@@ -18,6 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            // The door to /internal/v1: a service account, switched on,
+            // holding the scope, inside its rate limit — and logged.
+            'service' => EnsureServiceScope::class,
         ]);
 
         /*

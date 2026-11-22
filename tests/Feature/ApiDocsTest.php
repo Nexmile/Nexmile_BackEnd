@@ -132,18 +132,23 @@ class ApiDocsTest extends TestCase
         $missing = array_diff($all, $split);
 
         /*
-         * Two things belong in no app document, and only these two.
+         * Three things belong in no app document, and only these three.
          *
          * Admin is an internal tool. Webhooks are Razorpay talking to us
          * server to server — no app ever calls one, and putting it in a
-         * customer document would suggest otherwise.
+         * customer document would suggest otherwise. /internal/v1 is the
+         * service API outside systems call: no app holds those credentials,
+         * and documenting it beside the customer endpoints would invite
+         * somebody to try.
          *
          * Anything else appearing here is an endpoint that landed in no
          * document at all, which is what this assertion exists to catch.
          */
         foreach ($missing as $path) {
             $this->assertTrue(
-                str_contains($path, '/admin/') || str_contains($path, '/webhooks/'),
+                str_contains($path, '/admin/')
+                    || str_contains($path, '/webhooks/')
+                    || str_starts_with($path, '/internal/'),
                 "{$path} is in no app document",
             );
         }

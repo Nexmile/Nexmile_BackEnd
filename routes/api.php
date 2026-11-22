@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Internal\OrderContextController as InternalOrderContextController;
+use App\Http\Controllers\Api\Internal\SupportActionController as InternalSupportActionController;
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\Admin\DispatchController as AdminDispatchController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
@@ -419,4 +421,52 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             });
         });
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Internal service API — section 9 of the AI BPO specification
+|--------------------------------------------------------------------------
+|
+| Called by machines, not by people. Everything here is authenticated as a
+| ServiceClient holding a named scope, rate limited per client, and written
+| to service_api_logs whether it succeeds or fails.
+|
+| Separate from /api/v1 on purpose. The apps' API answers for whoever is
+| holding the token; this one answers about somebody else entirely, which is
+| a different enough promise to deserve a different door. It is also excluded
+| from the three app documents for the same reason — see
+| AppServiceProvider::registerApiDocs().
+|
+| Nothing here moves money, changes an order's state or exposes a delivery
+| address. Those stay where the customer's own consent and the platform's own
+| workflows already cover them.
+*/
+Route::prefix('internal/v1')->name('internal.v1.')->middleware('auth:sanctum')->group(function () {
+    Route::get('customers/{customer}', [InternalOrderContextController::class, 'customer'])
+        ->middleware('service:customers.read')->name('customers.show');
+
+    Route::get('customers/{customer}/orders', [InternalOrderContextController::class, 'customerOrders'])
+        ->middleware('service:orders.read')->name('customers.orders');
+
+    Route::get('orders/{order}', [InternalOrderContextController::class, 'order'])
+        ->middleware('service:orders.read')->name('orders.show');
+
+    Route::get('merchants/{merchant}', [InternalOrderContextController::class, 'merchant'])
+        ->middleware('service:merchants.read')->name('merchants.show');
+
+    /*
+     * Keyed on the order, not the rider. A support system has no business
+     * asking where a named rider is; it has every business asking where the
+     * food on this order has got to.
+     */
+    Route::get('orders/{order}/delivery-status', [InternalOrderContextController::class, 'deliveryStatus'])
+        ->middleware('service:riders.read')->name('orders.delivery-status');
+
+    Route::post('support-tickets', [InternalSupportActionController::class, 'ticket'])
+        ->middleware('service:tickets.write')->name('support-tickets.store');
+
+    // Read-only, and staying that way. Nexmile issues refunds; callers ask.
+    Route::post('refunds/eligibility-check', [InternalSupportActionController::class, 'refundEligibility'])
+        ->middleware('service:refunds.check')->name('refunds.eligibility');
 });
