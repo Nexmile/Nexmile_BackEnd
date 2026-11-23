@@ -16,6 +16,7 @@ use App\Models\RiderLocationPing;
 use App\Models\RiderPayout;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -578,6 +579,19 @@ class AdminRiderManagementTest extends TestCase
 
     public function test_a_whole_day_is_shown_only_when_it_is_asked_for(): void
     {
+        /*
+         * Pinned to the middle of the day.
+         *
+         * This test plants pings at relative times and then asks for
+         * "today". Run at twenty past midnight, "two hours ago" is
+         * yesterday, the day scope correctly returns nothing, and the test
+         * fails for a reason that has nothing to do with the screen. The
+         * filter is right — it is local midnight to local midnight, which is
+         * what an admin asking about a day means. It was the clock the test
+         * happened to run on that was the variable.
+         */
+        Carbon::setTestNow(Carbon::today()->setTime(14, 0));
+
         $rider = $this->rider();
         $order = $this->order($rider, OrderStatus::Delivered, ['delivered_at' => now()->subHour()]);
 
@@ -606,6 +620,8 @@ class AdminRiderManagementTest extends TestCase
 
         $this->assertSame('day', $response->viewData('trailScope'));
         $this->assertCount(2, $response->viewData('trail')['points']);
+
+        Carbon::setTestNow();
     }
 
     public function test_the_day_asked_for_is_the_day_returned(): void
