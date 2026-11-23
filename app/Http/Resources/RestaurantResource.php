@@ -35,9 +35,14 @@ class RestaurantResource extends JsonResource
             'banner_url' => $images->url($this->banner_path),
 
             /*
-             * The carousel, present only where the relation was loaded — the
-             * storefront. A nearby list of twenty restaurants does not want
-             * eight signed URLs each for images nobody will scroll to.
+             * The carousel, present wherever the relation was loaded.
+             *
+             * The storefront loads all of it. A list loads the first
+             * `discovery.card_photos` only — the card swipes through three,
+             * and fifty cards times a full carousel is several hundred signed
+             * URLs for images nobody will scroll to. The cut is made in
+             * NearbyMerchantService, so this renders whatever is loaded and
+             * has one shape on both screens.
              */
             'photos' => $this->whenLoaded('photos', fn () => $this->photos
                 ->map(fn ($photo) => [
@@ -136,6 +141,21 @@ class RestaurantResource extends JsonResource
             ),
 
             'area' => $this->city,
+
+            /*
+             * One dish on the card's photo, present only on a list — the
+             * storefront below shows the whole menu and has no need of a
+             * sample from it.
+             *
+             * Always a bestseller, and absent when the restaurant has none
+             * rather than filled with whatever sorted first. See
+             * NearbyMerchantService::attachCardMedia for why that is the
+             * honest answer, and config/menu.php for what earns the label.
+             */
+            'featured_dish' => $this->when(
+                isset($this->featured_dish),
+                fn () => $this->featured_dish,
+            ),
 
             'operating_hours' => $this->whenLoaded('operatingHours', fn () => $this->operatingHours
                 ->sortBy('day_of_week')

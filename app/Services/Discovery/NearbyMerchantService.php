@@ -98,6 +98,12 @@ class NearbyMerchantService
          */
         $this->roads->attach($page->getCollection(), $latitude, $longitude);
 
+        /*
+         * The card's photo strip and the dish shown on it. Same page, same
+         * reason: a card is only drawn for the rows being shown.
+         */
+        $this->attachCardMedia($page->getCollection());
+
         return $page;
     }
 
@@ -333,6 +339,82 @@ class NearbyMerchantService
                 fn (Merchant $a, Merchant $b) => $a->distance_metres <=> $b->distance_metres,
             ])
             ->values();
+    }
+
+    /**
+     * What a restaurant card shows beyond its banner: a short photo strip and
+     * one dish on top of it.
+     *
+     * Run against the page, never the candidates. A 1 km box can hold a
+     * hundred restaurants and only the fifteen being shown have a card — the
+     * same rule as road distances and matched dishes.
+     *
+     * @param  Collection<int, Merchant>  $merchants
+     */
+    protected function attachCardMedia(Collection $merchants): void
+    {
+        if ($merchants->isEmpty()) {
+            return;
+        }
+
+        /*
+         * Loaded whole, then cut to `card_photos`.
+         *
+         * A per-parent limit inside an eager load needs window functions, and
+         * this suite runs on SQLite while production runs on RDS MySQL — the
+         * same reason the haversine is in PHP. A carousel is a handful of rows
+         * per restaurant, so loading it and cutting here costs one query and
+         * keeps the resource one shape: it renders whatever was loaded.
+         *
+         * Built as an Eloquent collection because the page is typed as a plain
+         * one. The models are the same objects either way, so the relation
+         * lands on the rows the resource will read.
+         */
+        $rows = new EloquentCollection($merchants->all());
+        $rows->load('photos');
+
+        $limit = (int) config('discovery.card_photos');
+
+        $rows->each(fn (Merchant $merchant) => $merchant->setRelation(
+            'photos',
+            $merchant->photos->take($limit)->values(),
+        ));
+
+        /*
+         * One dish for the card, and only ever a bestseller.
+         *
+         * Absent rather than substituted when a restaurant has none.
+         * Bestsellers are earned overnight from delivered orders and withheld
+         * below a minimum (config/menu.php); a card promoting whichever dish
+         * happened to sort first is the platform recommending something nobody
+         * has bought, which is worse than a card with no dish on it.
+         *
+         * Cheap for the same reason: `per_merchant` caps bestsellers at a
+         * handful, so this reads tens of rows for a page rather than every
+         * menu on the screen.
+         */
+        $dishes = MenuItem::query()
+            ->whereIn('merchant_id', $merchants->pluck('id'))
+            ->where('is_bestseller', true)
+            ->available()
+            ->ordered()
+            ->get(['id', 'merchant_id', 'name', 'price', 'is_veg'])
+            ->groupBy('merchant_id');
+
+        $merchants->each(function (Merchant $merchant) use ($dishes) {
+            $dish = ($dishes[$merchant->id] ?? collect())->first();
+
+            if ($dish === null) {
+                return;
+            }
+
+            $merchant->featured_dish = [
+                'id' => $dish->id,
+                'name' => $dish->name,
+                'price' => (float) $dish->price,
+                'is_veg' => (bool) $dish->is_veg,
+            ];
+        });
     }
 
     /**

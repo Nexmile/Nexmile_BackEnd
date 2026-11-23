@@ -163,6 +163,44 @@ never heard of, and the customer would find out at the payment screen. Offers
 come from what checkout will actually do. `label` is localised and rendered
 verbatim, as you asked; show the first one on a card.
 
+### `featured_dish` and `photos` — the card's photo and the dish on it
+
+Added for the new restaurant cards. Both are on every restaurant in
+`GET /v1/restaurants` and inside `/v1/home`.
+
+```json
+{
+  "featured_dish": { "id": 41, "name": "Non Veg Loaded", "price": 202, "is_veg": false },
+  "photos": [
+    { "id": 7, "url": "https://…", "caption": "Slide 1" }
+  ]
+}
+```
+
+**`featured_dish` is always a bestseller, and absent when there is no
+bestseller.** Not a fallback to whichever dish sorted first — that would be
+the platform recommending something nobody has bought, which is the same
+reason the `is_bestseller` badge is withheld below a minimum order count (see
+`config/menu.php`). Most kitchens have none yet, so **the card has to work
+without it**. A sold-out dish is never sent, even if it is a bestseller.
+
+`id` is there so the label can become tappable later; you did not ask for it
+and nothing breaks if you ignore it.
+
+**`photos` on a list is capped at three** (`discovery.card_photos`), in the
+order the merchant arranged them. `GET /v1/restaurants/{id}` still sends the
+whole carousel — same shape, so one widget reads both. The cap exists because
+each URL is signed: fifty cards times a full carousel is several hundred
+signatures for images nobody scrolls to.
+
+Every `url` is **signed and expiring** (`media.url_ttl_minutes`, a day), so
+cache the image rather than the link. A stored link returns 403 once it
+lapses, and the cure is to re-fetch the list.
+
+Both are attached to the page being shown, not to every candidate the search
+crossed: two queries per request whatever the screen holds, which a test
+pins.
+
 ---
 
 ## 4. Query parameters on `GET /v1/restaurants`

@@ -56,6 +56,16 @@ return [
     'matched_dishes_shown' => 3,
 
     /*
+     * How many carousel photos a restaurant *card* carries.
+     *
+     * The storefront sends the whole carousel; a list does not. Three is
+     * what the app swipes through on a card, and each one is a signed URL
+     * — fifty cards times eight photos is four hundred signatures and a
+     * response nobody reads the end of.
+     */
+    'card_photos' => 3,
+
+    /*
      * How long the home screen's banners, cuisines and collection tiles are
      * held.
      *
