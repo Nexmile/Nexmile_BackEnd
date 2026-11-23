@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Media\ImageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -67,6 +68,20 @@ class OrderResource extends JsonResource
             'restaurant' => $this->whenLoaded('merchant', fn () => [
                 'id' => $this->merchant->id,
                 'name' => $this->merchant->business_name,
+
+                /*
+                 * The area under the name on a history card, and the logo
+                 * beside it. Same two keys, same spelling, as the
+                 * restaurant card on the home screen — the app should not
+                 * have to learn a second shape for the same shop.
+                 *
+                 * logo_url is a signed URL with a lifetime of
+                 * media.url_ttl_minutes, and null for a shop that has not
+                 * uploaded one. Worth fetching, not storing.
+                 */
+                'area' => $this->merchant->city,
+                'logo_url' => app(ImageService::class)->url($this->merchant->logo_path),
+
                 'address' => implode(', ', array_filter([
                     $this->merchant->address_line1,
                     $this->merchant->address_line2,

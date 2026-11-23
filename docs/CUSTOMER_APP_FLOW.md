@@ -339,6 +339,7 @@ geocoding:
 },
 "restaurant": {
   "id": 3, "name": "Ponnusamy Hotel",
+  "area": "Thirumangalam", "logo_url": "https://…",
   "address": "9 Anna Salai, Madurai", "phone": "…",
   "latitude": 9.9195, "longitude": 78.1193
 }
@@ -415,6 +416,28 @@ what the order was actually charged.
 Every order keeps its **own** price breakdown and item names, snapshotted when
 it was placed. A restaurant renaming a dish or changing its price does not
 alter what a past order says.
+
+### What a history card can show
+
+`restaurant` is on every row of `GET /orders`, not just on the single order,
+and carries what a card needs:
+
+| Field | Note |
+|---|---|
+| `restaurant.name` | the shop |
+| `restaurant.area` | the line under it — same field as the home-screen card |
+| `restaurant.logo_url` | the picture, or `null` |
+
+`logo_url` is **null for a shop that has not uploaded a logo**, which is most
+of them today. Show a placeholder on null rather than treating it as an
+error.
+
+It is also a **signed URL with a lifetime** (`media.url_ttl_minutes`, a day),
+so cache the image, not the link. A link stored for a week returns 403, and
+the cure is to re-fetch the list rather than to retry the URL.
+
+Unchanged for the merchant's own order list: the field appears only where
+the relation was loaded, so nothing here costs a query per row.
 
 ---
 
