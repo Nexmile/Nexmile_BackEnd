@@ -18,6 +18,7 @@ class Review extends Model
     protected $fillable = [
         'order_id', 'user_id', 'merchant_id', 'rider_id',
         'rating', 'rider_rating', 'comment',
+        'tags', 'rider_tags', 'rider_comment',
     ];
 
     /*
@@ -26,12 +27,26 @@ class Review extends Model
      * field on a form.
      */
 
+    /*
+     * `rider_tags` and `rider_comment` are for ops and the rider's record.
+     * They are not public, and ReviewResource — the one a stranger reads —
+     * must never carry them. A test asserts it.
+     */
+
     protected function casts(): array
     {
         return [
             'rating' => 'integer',
             'rider_rating' => 'integer',
             'hidden_at' => 'datetime',
+
+            /*
+             * Codes from config/reviews.php. Cast to arrays so every
+             * reader gets a list and nobody has to remember whether this
+             * column holds JSON or a comma-separated string.
+             */
+            'tags' => 'array',
+            'rider_tags' => 'array',
         ];
     }
 

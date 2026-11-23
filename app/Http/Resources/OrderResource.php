@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Services\Media\ImageService;
+use App\Services\Reviews\ReviewService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -123,6 +124,61 @@ class OrderResource extends JsonResource
             'cancelled_at' => $this->cancelled_at,
             'cancellation_reason' => $this->cancellation_reason,
 
+            /*
+             * Who brought it, on a delivered order as well as a live one.
+             *
+             * A history card naming the rider is how a customer rates the
+             * right person a day later. Only a name — the phone number is on
+             * the live tracking screen while the delivery is happening and
+             * has no business in a list of last month's dinners.
+             *
+             * photo_url is null because there is no rider photo: riders
+             * upload KYC documents, which include a face, and serving one of
+             * those as a profile picture would publish an identity document.
+             * The key is here so the app can stop drawing a placeholder the
+             * day a real photo exists.
+             */
+            'rider' => $this->whenLoaded('rider', fn () => [
+                'name' => $this->rider->full_name,
+                'photo_url' => null,
+            ]),
+
+            /*
+             * The rating this order already has, or null — so the app can tell
+             * "not rated" from "rated 0". An unrated order yields null
+             * here without the closure running: whenLoaded answers null
+             * for a relation that is loaded and empty, which is the
+             * behaviour this field wants and the reason can_review below
+             * cannot use it.
+             *
+             * Deliberately only the two numbers. The comment and the tags
+             * belong to GET /orders/{id}/review, which is one order rather
+             * than twenty, and a history list does not need to carry
+             * everybody's sentences.
+             */
+            'review' => $this->whenLoaded('review', fn () => [
+                'rating' => $this->review->rating,
+                'rider_rating' => $this->review->rider_rating,
+            ]),
+
+            /*
+             * Whether to offer the rating button: delivered, inside the
+             * window, and not already rated.
+             *
+             * Answered by the same code that will accept or refuse the review
+             * (ReviewService), because the alternative is two definitions of
+             * "can" and a button that leads to a 422.
+             *
+             * Present only where the review relation was loaded. Not a
+             * nicety: without that gate the merchant's own order list —
+             * which renders this same resource and has no use for the
+             * field — would ask the database once per row whether a
+             * customer had rated it.
+             */
+            'can_review' => $this->when(
+                $this->resource->relationLoaded('review'),
+                fn () => ReviewService::canReview($this->resource),
+            ),
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'timeline' => $this->whenLoaded('statusHistory', fn () => $this->statusHistory->map(fn ($row) => [
                 'to_status' => $row->to_status,

@@ -445,6 +445,7 @@ return [
         'show_all' => 'Show all',
         'none' => 'No reviews yet. They appear here as soon as customers start rating delivered orders.',
         'anonymous' => 'A customer',
+        'window_closed' => '{1} You can rate an order for a day after it arrives.|[2,*] You can rate an order for :days days after it arrives.',
     ],
 
 ];

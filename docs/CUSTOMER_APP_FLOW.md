@@ -24,7 +24,7 @@ and **ratings**. Neither blocks the app.
 | 7 | Checkout | **Live** |
 | 8 | Payment | **COD only** — no gateway yet |
 | 9 | Live order tracking | **Live** |
-| 10 | Order history | **Live** · rating not built |
+| 10 | Order history | **Live** |
 
 ---
 
@@ -413,6 +413,10 @@ what the order was actually charged.
 | GET | `/orders?active=1` | in-flight only — for a home-screen banner |
 | GET | `/orders/{id}` | full order, items, timeline |
 
+Each row also carries `review`, `can_review` and `rider` — whether it was
+rated, whether the button should be offered, and who brought it.
+[REVIEWS.md](REVIEWS.md) has the shapes.
+
 Every order keeps its **own** price breakdown and item names, snapshotted when
 it was placed. A restaurant renaming a dish or changing its price does not
 alter what a past order says.
@@ -532,7 +536,9 @@ Then, all now live on the server and none of them changing anything above:
 
 - **Push** — see the section above, and read the audience table first
 - **Ratings and reviews** — leave a rating, read a restaurant's reviews, rate
-  individual dishes from an order
+  individual dishes, tag what was good or wrong, and rate the rider
+  separately. See [REVIEWS.md](REVIEWS.md) — the tag vocabulary, the
+  seven-day window, and which half of a review is public
 - **Reporting a rider** — on the finished-order screen, beside the rating
   rather than instead of it; a star rating cannot carry "he shouted at me"
 

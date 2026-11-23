@@ -21,6 +21,7 @@ like a broken integration. That is not hypothetical; it cost a round trip.
 | `order.picked_up` | ✅ | | | Food left the restaurant |
 | `order.rider_outside` | ✅ | | | The rider is at the door |
 | `order.delivered` | ✅ | | | Handed over |
+| `order.review_requested` | ✅ | | | ~45 min later, if still unrated |
 | `order.cancelled` | ✅ | | | Cancelled after acceptance |
 | `ORDER_OFFER` | | | ✅ | A rider is being rung for an order (data only) |
 | `OFFER_CANCELLED` | | | ✅ | That card is withdrawn (data only) |
@@ -47,13 +48,18 @@ time, so a rider build should handle both and will see one.
 is about the rider rather than an order, and `test`. So an app can open the
 order screen from any of the rest without checking which type it was.
 
-**The customer app receives eight of them.** `order.placed` is the "new
+**The customer app receives nine of them.** `order.placed` is the "new
 order in your kitchen" alert for a shop whose tablet is on a shelf, and
 `order.offer` is the one that justifies the whole feature — an order going cold
 until a rider's phone rings.
 
 `order.rider_assigned` is the only type sent to two apps, as two separate
 messages with different wording.
+
+**`order.review_requested` is the only one that may not arrive.** It is
+scheduled when an order is delivered and re-checked when it fires, so an
+order rated in the meantime gets no reminder. It also needs the queue
+worker: no worker, no reminder. See [REVIEWS.md](REVIEWS.md).
 
 ### Testing a customer device
 

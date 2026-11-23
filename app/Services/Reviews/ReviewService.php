@@ -32,19 +32,12 @@ class ReviewService
     public const MIN_RATINGS_TO_PUBLISH = 3;
 
     /**
+     * Record what a customer said about one delivered order.
+     *
      * @throws ValidationException
      */
-    /**
-     * @param  array<int, int>  $dishRatings  menu_item_id => 1..5
-     */
-    public function leave(
-        Order $order,
-        User $actor,
-        int $rating,
-        ?int $riderRating,
-        ?string $comment,
-        array $dishRatings = [],
-    ): Review {
+    public function leave(Order $order, User $actor, ReviewDraft $draft): Review
+    {
         if ($order->user_id !== $actor->id) {
             throw ValidationException::withMessages([
                 'order' => 'You can only review your own orders.',
@@ -63,7 +56,23 @@ class ReviewService
             ]);
         }
 
-        $review = DB::transaction(function () use ($order, $actor, $rating, $riderRating, $comment, $dishRatings) {
+        if (! self::isWithinWindow($order)) {
+            throw ValidationException::withMessages([
+                'order' => trans_choice('portal.reviews.window_closed', self::windowDays(), [
+                    'days' => self::windowDays(),
+                ]),
+            ]);
+        }
+
+        $review = DB::transaction(function () use ($order, $actor, $draft) {
+            /*
+             * A rider's fields are dropped outright on a collected order, not
+             * merely ignored. There is nobody to attach them to, and a stored
+             * complaint about a rider who never existed is a row that will one
+             * day be read as if it meant something.
+             */
+            $delivered = $order->rider_id !== null;
+
             $review = Review::create([
                 'order_id' => $order->id,
                 'user_id' => $actor->id,
@@ -71,9 +80,15 @@ class ReviewService
                 // Only where a rider actually carried it: rating nobody for a
                 // collected order would be rating thin air.
                 'rider_id' => $order->rider_id,
-                'rating' => $rating,
-                'rider_rating' => $order->rider_id === null ? null : $riderRating,
-                'comment' => $comment,
+                'rating' => $draft->rating,
+                'rider_rating' => $delivered ? $draft->riderRating : null,
+                'comment' => $draft->comment,
+
+                // Empty lists are stored as null, so "said nothing" is one
+                // value rather than two that readers have to treat alike.
+                'tags' => $draft->tags === [] ? null : $draft->tags,
+                'rider_tags' => $delivered && $draft->riderTags !== [] ? $draft->riderTags : null,
+                'rider_comment' => $delivered ? $draft->riderComment : null,
             ]);
 
             /*
@@ -83,7 +98,7 @@ class ReviewService
              */
             $ordered = $order->items()->pluck('menu_item_id')->filter()->all();
 
-            foreach ($dishRatings as $menuItemId => $score) {
+            foreach ($draft->dishRatings as $menuItemId => $score) {
                 if (! in_array((int) $menuItemId, $ordered, true)) {
                     continue;
                 }
@@ -103,6 +118,57 @@ class ReviewService
         });
 
         return $review;
+    }
+
+    /** How many days after delivery an order can still be rated. */
+    public static function windowDays(): int
+    {
+        return max(1, (int) config('reviews.window_days'));
+    }
+
+    /**
+     * Whether this order is still inside its rating window.
+     *
+     * Static, and here rather than on the model, because two callers need the
+     * same answer: this service when a review arrives, and OrderResource when
+     * it tells the app whether to show the button. Those two disagreeing is a
+     * button that leads to a 422.
+     *
+     * Measured from `delivered_at`, falling back to the order's own clock for
+     * rows delivered before that column was filled — a null there must not
+     * read as "delivered in 1970" and close the window on a live order.
+     */
+    public static function isWithinWindow(Order $order): bool
+    {
+        if ($order->status !== OrderStatus::Delivered) {
+            return false;
+        }
+
+        $delivered = $order->delivered_at ?? $order->updated_at ?? $order->created_at;
+
+        if ($delivered === null) {
+            return true;
+        }
+
+        return $delivered->copy()->addDays(self::windowDays())->isFuture();
+    }
+
+    /**
+     * Whether the app should offer a rating button for this order.
+     *
+     * Delivered, inside the window, and not already rated. The `review`
+     * relation is used when it is loaded so a list of twenty orders does not
+     * ask the database twenty times.
+     */
+    public static function canReview(Order $order): bool
+    {
+        if (! self::isWithinWindow($order)) {
+            return false;
+        }
+
+        return $order->relationLoaded('review')
+            ? $order->review === null
+            : ! $order->review()->exists();
     }
 
     /**

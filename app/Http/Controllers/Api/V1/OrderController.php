@@ -46,7 +46,13 @@ class OrderController extends Controller
         ]);
 
         $orders = $request->user()->orders()
-            ->with(['items', 'merchant'])
+            /*
+             * `review` and `rider` are for the history card: whether it was
+             * rated, and who brought it. Loaded rather than asked per row —
+             * can_review is answered from the loaded relation precisely so
+             * a list of twenty orders is not twenty extra queries.
+             */
+            ->with(['items', 'merchant', 'review', 'rider'])
             ->when($filters['active'] ?? false, fn ($q) => $q->active())
             ->latest('created_at')
             ->paginate($filters['per_page'] ?? 20);
@@ -61,7 +67,7 @@ class OrderController extends Controller
     {
         return response()->json([
             'data' => new OrderResource($this->find($request, $order, [
-                'items.options', 'merchant', 'statusHistory', 'rider.user',
+                'items.options', 'merchant', 'statusHistory', 'rider.user', 'review',
             ])),
         ]);
     }

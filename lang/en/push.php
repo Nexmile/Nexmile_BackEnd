@@ -85,6 +85,10 @@ return [
             'title' => 'Delivered',
             'body' => 'Enjoy your food. Tap to rate it.',
         ],
+        'review_requested' => [
+            'title' => 'How was your order?',
+            'body' => 'A moment to rate :restaurant helps the next customer.',
+        ],
         'cancelled' => [
             'title' => 'Order cancelled',
             'body' => ':reason Any payment is being refunded in full.',

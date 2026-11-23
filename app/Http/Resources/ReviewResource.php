@@ -25,6 +25,18 @@ class ReviewResource extends JsonResource
             'comment' => $this->comment,
 
             /*
+             * The food tags, which are what makes a bare three stars worth
+             * reading: "cold_food" tells the next customer something the
+             * number cannot.
+             *
+             * The food tags only. `rider_tags` and `rider_comment` are about
+             * an identifiable worker and are deliberately absent — on a
+             * restaurant's page "rude" names nobody, but it is an accusation
+             * against one person who cannot answer it here. Ops read those.
+             */
+            'tags' => $this->tags ?? [],
+
+            /*
              * First name only, and never the phone the account signs in with.
              * "Priya" is enough to read a review as written by a person;
              * anything more identifies a customer to their neighbours.

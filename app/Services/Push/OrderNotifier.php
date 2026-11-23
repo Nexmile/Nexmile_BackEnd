@@ -4,6 +4,7 @@ namespace App\Services\Push;
 
 use App\Enums\FulfilmentType;
 use App\Enums\RiderStatus;
+use App\Jobs\RequestOrderReview;
 use App\Models\Order;
 use App\Models\Rider;
 
@@ -210,6 +211,36 @@ class OrderNotifier
             'push.customer.delivered',
             [],
             ['type' => 'order.delivered', 'order_id' => (string) $order->id],
+        );
+
+        /*
+         * And ask again later. This push lands while the customer is at the
+         * door with their hands full, which is why most ratings come from the
+         * second ask rather than this one.
+         *
+         * Scheduled here because this is the method that owns what happens,
+         * push-wise, when an order is delivered. The job itself decides
+         * whether to send: it re-checks at fire time.
+         */
+        RequestOrderReview::dispatch($order->id)
+            ->delay(now()->addMinutes((int) config('reviews.reminder_after_minutes')));
+    }
+
+    /**
+     * "How was it?" — the second ask, three quarters of an hour later.
+     *
+     * Sent only by RequestOrderReview, which has already established that the
+     * order is still ratable. Carries the same `order_id` shape as every other
+     * order push, because the app opens the order for any of them.
+     */
+    public function reviewRequested(Order $order): void
+    {
+        $this->push->toUser(
+            $order->customer,
+            PushService::CUSTOMER,
+            'push.customer.review_requested',
+            ['restaurant' => $order->merchant?->business_name ?? ''],
+            ['type' => 'order.review_requested', 'order_id' => (string) $order->id],
         );
     }
 
