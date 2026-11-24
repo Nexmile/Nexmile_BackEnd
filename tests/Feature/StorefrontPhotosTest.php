@@ -240,20 +240,31 @@ class StorefrontPhotosTest extends TestCase
         $this->assertNotNull($response->json('data.photos.0.url'));
     }
 
-    public function test_the_nearby_list_does_not_carry_galleries(): void
+    public function test_the_nearby_list_carries_a_card_strip_not_the_whole_gallery(): void
     {
         /*
          * Twenty restaurants with eight signed URLs each is a hundred and
          * sixty links generated for images nobody will scroll to.
+         *
+         * This used to assert the list carried no photos at all. The cards
+         * swipe through a few now, so it carries `discovery.card_photos` — the
+         * *bound* is what this test was always for, and the storefront above
+         * is still the one place that sends everything.
          */
         $user = $this->merchantUser();
-        $this->addPhoto($user, 'First');
+
+        foreach (['First', 'Second', 'Third', 'Fourth'] as $caption) {
+            $this->addPhoto($user, $caption);
+        }
 
         Sanctum::actingAs($this->customer());
 
         $this->getJson('/api/v1/restaurants?latitude=9.9195&longitude=78.1193')
             ->assertOk()
-            ->assertJsonMissingPath('data.0.photos');
+            ->assertJsonCount((int) config('discovery.card_photos'), 'data.0.photos')
+            // In the order the merchant arranged them, so a card leads with
+            // the picture they chose to lead with.
+            ->assertJsonPath('data.0.photos.0.caption', 'First');
     }
 
     private function customer(): User
