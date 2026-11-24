@@ -998,10 +998,10 @@
                                 "checkout"
                             ]
                         },
-                        "description": "Everything is re-checked here — availability, opening hours, the 1 km radius, the minimum. Expect 422s even when the cart looked fine, and show `errors.<field>[0]` verbatim:\n\n- `cart` — empty, below the minimum, or an item sold out\n- `merchant` — closed or not taking orders\n- `address_id` — outside the radius, or no pin\n- `payment_method` — not available yet\n\nThe cart is emptied on success, so tapping back cannot place it twice.",
+                        "description": "Everything is re-checked here — availability, opening hours, the 1 km radius, the minimum. Expect 422s even when the cart looked fine, and show `errors.<field>[0]` verbatim:\n\n- `cart` — empty, below the minimum, or an item sold out\n- `merchant` — closed or not taking orders\n- `address_id` — outside the radius, or no pin\n- `payment_method` — not available yet\n\nThe cart is emptied on success, so tapping back cannot place it twice.\n\n`delivery_instructions` are codes for the rider (`leave_at_door`, `no_bell`, `no_call`, `leave_with_security`, `pet_at_home`, max five); `no_cutlery` is for the kitchen. Each reaches only the person who can act on it, so do not pack them into `note` — the note goes to everybody. An unknown code is a 422 keyed to `delivery_instructions`, and that message is for you, not the customer.",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"fulfilment_type\": \"delivery\",\n    \"payment_method\": \"cod\",\n    \"address_id\": \"{{address_id}}\",\n    \"note\": \"Ring the bell twice\"\n}",
+                            "raw": "{\n    \"fulfilment_type\": \"delivery\",\n    \"payment_method\": \"cod\",\n    \"address_id\": \"{{address_id}}\",\n    \"note\": \"Less spicy\",\n    \"delivery_instructions\": [\n        \"leave_at_door\",\n        \"no_bell\"\n    ],\n    \"no_cutlery\": true\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"

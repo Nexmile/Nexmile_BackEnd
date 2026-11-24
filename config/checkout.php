@@ -70,6 +70,34 @@ return [
     'max_quantity_per_item' => 20,
 
     /*
+     * Delivery instructions a customer may attach to an order.
+     *
+     * **Codes, not labels**, the same choice the review tags made: the apps
+     * hold the translations, so wording "leave_at_door" for a Tamil customer
+     * is a client release rather than a migration.
+     *
+     * These are instructions for the **rider**, and they are the reason this
+     * list is short and closed. A free-text field here would collect "call me
+     * when you reach the gate" in three languages, and a rider holding a hot
+     * bag at a locked gate cannot read a paragraph. Five fixed things that
+     * each change one action.
+     */
+    'delivery_instructions' => [
+        'leave_at_door',
+        'no_bell',
+        'no_call',
+        'leave_with_security',
+        'pet_at_home',
+    ],
+
+    /*
+     * All five at once is already contradictory in places, but the cap is
+     * about the rider's screen, not consistency: past about three, nothing is
+     * read.
+     */
+    'max_delivery_instructions' => 5,
+
+    /*
      * Commission a new merchant starts on, as a percentage of food and
      * packaging.
      *

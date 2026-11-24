@@ -182,8 +182,10 @@ MD,
         ['6. Checkout and orders', 'Cash on delivery only for now. A COD order is created at `placed` and reaches the restaurant immediately.', [
             req('Place order (delivery)', 'POST', 'restaurants/{{restaurant_id}}/cart/checkout', [
                 'fulfilment_type' => 'delivery', 'payment_method' => 'cod',
-                'address_id' => '{{address_id}}', 'note' => 'Ring the bell twice',
-            ], "Everything is re-checked here — availability, opening hours, the 1 km radius, the minimum. Expect 422s even when the cart looked fine, and show `errors.<field>[0]` verbatim:\n\n- `cart` — empty, below the minimum, or an item sold out\n- `merchant` — closed or not taking orders\n- `address_id` — outside the radius, or no pin\n- `payment_method` — not available yet\n\nThe cart is emptied on success, so tapping back cannot place it twice.",
+                'address_id' => '{{address_id}}', 'note' => 'Less spicy',
+                'delivery_instructions' => ['leave_at_door', 'no_bell'],
+                'no_cutlery' => true,
+            ], "Everything is re-checked here — availability, opening hours, the 1 km radius, the minimum. Expect 422s even when the cart looked fine, and show `errors.<field>[0]` verbatim:\n\n- `cart` — empty, below the minimum, or an item sold out\n- `merchant` — closed or not taking orders\n- `address_id` — outside the radius, or no pin\n- `payment_method` — not available yet\n\nThe cart is emptied on success, so tapping back cannot place it twice.\n\n`delivery_instructions` are codes for the rider (`leave_at_door`, `no_bell`, `no_call`, `leave_with_security`, `pet_at_home`, max five); `no_cutlery` is for the kitchen. Each reaches only the person who can act on it, so do not pack them into `note` — the note goes to everybody. An unknown code is a 422 keyed to `delivery_instructions`, and that message is for you, not the customer.",
                 [], grab([
                     'if (body.data && body.data.id) {',
                     '    pm.collectionVariables.set("order_id", body.data.id);',

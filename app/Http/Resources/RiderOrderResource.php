@@ -58,6 +58,22 @@ class RiderOrderResource extends JsonResource
                 'contact_phone' => $this->delivery_contact_phone,
 
                 /*
+                 * What the customer asked the rider to do at the door, as
+                 * codes — the app holds the wording, so a Tamil rider reads
+                 * Tamil without a server release.
+                 *
+                 * Inside `dropoff` on purpose, which means post-assignment.
+                 * "Leave with security" and "pet at home" are facts about
+                 * where somebody lives, and an offer goes out to fifteen
+                 * phones; the same reason the address and the phone number
+                 * are not on the offer board either.
+                 *
+                 * Empty array, never null, so the app can loop without a
+                 * check.
+                 */
+                'delivery_instructions' => $this->delivery_instructions ?? [],
+
+                /*
                  * Also sent apart from the composed `address` line below, so
                  * the app can give each part its own weight on screen instead
                  * of hunting for it inside one long string.
@@ -112,8 +128,15 @@ class RiderOrderResource extends JsonResource
              */
             'pickup_code_required' => $this->rider_id !== null && $this->picked_up_at === null,
 
-            'customer_note' => $this->customer_note,
-            'placed_at' => $this->placed_at,
+            /*
+             * The note as the customer typed it, which is addressed to the
+             * kitchen. Still sent, because a rider occasionally needs to know
+             * what was asked for — but `no_cutlery` is deliberately **not**
+             * here. A rider cannot put cutlery into a sealed bag, and a flag
+             * nobody can act on is a flag that gets ignored, including the day
+             * it matters.
+             */
+            'customer_note' => $this->customer_note,            'placed_at' => $this->placed_at,
             'ready_at' => $this->ready_at,
             'assigned_at' => $this->assigned_at,
             'reached_restaurant_at' => $this->reached_restaurant_at,

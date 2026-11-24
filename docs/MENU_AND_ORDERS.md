@@ -152,8 +152,21 @@ order its state.
 
 Lists are paginated (`per_page`, max 100).
 
-## Scoping
+### What the kitchen is told, and what it is not
 
+An order carries `no_cutlery` — the customer asked for none to be packed, which
+is the kitchen's job, so the portal shows it beside the note in the merchant's
+own language.
+
+It does **not** carry `delivery_instructions`. "Leave it at the door" is an
+instruction to a rider, and a kitchen screen is not where it belongs; the key is
+absent rather than empty, and a test holds it that way. Both live in
+[CART_AND_CHECKOUT.md](CART_AND_CHECKOUT.md).
+
+Notes come in two places and both are shown: the order note under the
+customer's details, and per-dish notes printed under the dish they belong to.
+
+## Scoping
 Every merchant-owned record resolves **through the authenticated merchant**,
 never from the id in the URL:
 

@@ -479,6 +479,31 @@ seconds while the screen is open.
 poll must not double as a list of where customers live. Do not build the map
 screen expecting it before acceptance.
 
+### `dropoff.delivery_instructions`
+
+What the customer asked the rider to do at the door, as **codes** — the app
+holds the wording, so a Tamil rider reads Tamil without waiting on a server
+release. Always an array; empty when nothing was asked for, so it can be looped
+without a null check.
+
+| Code | Means |
+|---|---|
+| `leave_at_door` | leave it at the door |
+| `no_bell` | do not ring the bell |
+| `no_call` | do not call |
+| `leave_with_security` | leave it with the security guard |
+| `pet_at_home` | there is a pet in the house |
+
+At most five, and an unknown code should be **skipped, not shown raw** — that is
+how a rider app stays working when the customer app ships a new chip first.
+
+**Inside `dropoff`, so after acceptance only.** "Leave with security" and "pet
+at home" are facts about where somebody lives, and an offer goes out to fifteen
+phones at once. Same reason the address and the phone number wait.
+
+`no_cutlery` is **not** sent to the rider at all. It is packed by the kitchen,
+who can act on it; a rider cannot open a sealed bag.
+
 **`collect_cash` is what to collect at the door** — the full total for a COD
 order, `0` for a prepaid one. Show it prominently; getting it wrong costs the
 rider money out of their own pocket.

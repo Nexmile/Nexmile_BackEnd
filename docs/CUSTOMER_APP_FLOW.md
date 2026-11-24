@@ -249,8 +249,18 @@ minimum, sold-out items, an empty cart and the restaurant being closed.
 ```json
 POST /restaurants/7/cart/checkout
 { "fulfilment_type": "delivery", "payment_method": "cod",
-  "address_id": 3, "note": "Ring the bell twice" }
+  "address_id": 3, "note": "Less spicy",
+  "delivery_instructions": ["leave_at_door", "no_bell"],
+  "no_cutlery": true }
 ```
+
+`delivery_instructions` are **codes** for the rider (`leave_at_door`,
+`no_bell`, `no_call`, `leave_with_security`, `pet_at_home`, max five) and
+`no_cutlery` is for the kitchen. Don't pack either into `note` — each one goes
+only to the person who can act on it, and the note goes to everybody. Both are
+echoed back on the order, and the instructions are dropped on a pickup order.
+Full detail, including which refusals are safe to show a customer, is in
+[CART_AND_CHECKOUT.md](CART_AND_CHECKOUT.md).
 
 Returns the created order. **The cart is emptied** — tapping back cannot place
 it twice.
@@ -266,6 +276,7 @@ looked fine a moment ago. Show `errors.<field>[0]` verbatim:
 | `merchant` | closed, or stopped taking orders |
 | `address_id` | outside the 1 km radius, or has no pin |
 | `payment_method` | not available yet |
+| `delivery_instructions` | **do not show this one** — a code this server build does not know, which is a client bug, not a customer one |
 
 ## 8. Payment
 

@@ -36,6 +36,33 @@ class OrderResource extends JsonResource
             'customer_name' => $this->delivery_contact_name ?? $this->whenLoaded('customer', fn () => $this->customer?->name),
             'customer_note' => $this->customer_note,
 
+            /*
+             * Echoed back to **the customer who placed it**, so the cart page
+             * can re-render what actually saved rather than what it sent. The
+             * two differ on a collected order, where the instructions are
+             * dropped — see CheckoutService.
+             *
+             * Withheld from everyone else, because this resource is not only
+             * the customer's: the merchant API returns it too. "Leave at the
+             * door" is an instruction to a rider, and putting it on a kitchen
+             * screen is the exact mixing of audiences these two fields were
+             * added to stop. The rider gets them from RiderOrderResource,
+             * inside `dropoff`, once the job is theirs.
+             *
+             * Codes, not labels: the app holds the wording.
+             */
+            'delivery_instructions' => $this->when(
+                $request->user()?->id === $this->user_id,
+                fn () => $this->delivery_instructions ?? [],
+            ),
+
+            /*
+             * Sent to the merchant as well, because this one is theirs — they
+             * pack the bag. The portal page renders it in their own language;
+             * a merchant app would get the boolean.
+             */
+            'no_cutlery' => (bool) $this->no_cutlery,
+
             'delivery_address' => $this->when($this->isDelivery(), fn () => [
                 // array_filter drops the nulls; line2 and landmark are usually
                 // both absent and an address full of nulls reads as an error.

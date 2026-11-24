@@ -44,15 +44,21 @@ class CheckoutService
     /**
      * @throws ValidationException
      */
-    public function place(
-        User $user,
-        Cart $cart,
-        FulfilmentType $fulfilment,
-        PaymentMethod $method,
-        ?Address $address = null,
-        ?string $note = null,
-        bool $useWallet = false,
-    ): Order {
+    public function place(User $user, Cart $cart, CheckoutDraft $draft): Order
+    {
+        /*
+         * Unpacked here rather than read through `$draft->` all the way down.
+         * Everything below this line is the original method, and the guards
+         * and the transaction are not the place to be making a mechanical
+         * change — what the customer asked for arrives as one object now, and
+         * that is the whole point of the draft.
+         */
+        $fulfilment = $draft->fulfilment;
+        $method = $draft->method;
+        $address = $draft->address;
+        $note = $draft->note;
+        $useWallet = $draft->useWallet;
+
         $cart->loadMissing(['merchant', 'items.menuItem', 'items.options.itemOption.group']);
 
         $this->guardPaymentMethod($method);
@@ -68,7 +74,7 @@ class CheckoutService
 
         $this->guardMinimum($quote);
 
-        $order = DB::transaction(function () use ($user, $cart, $fulfilment, $method, $address, $note, $quote, $distance, $useWallet) {
+        $order = DB::transaction(function () use ($user, $cart, $draft, $fulfilment, $method, $address, $note, $quote, $distance, $useWallet) {
             $order = Order::create([
                 'order_number' => $this->orderNumber(),
                 'user_id' => $user->id,
@@ -102,6 +108,31 @@ class CheckoutService
                 // Four digits, read aloud in a noisy kitchen doorway.
                 'pickup_code' => str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT),
                 'customer_note' => $note,
+
+                /*
+                 * Dropped on a collected order rather than stored.
+                 *
+                 * "Leave at the door" is an instruction to a rider, and a
+                 * pickup order has no rider. Keeping it would leave a row that
+                 * somebody reading the table later takes to mean a delivery
+                 * nobody made — the same call the rider half of a review
+                 * makes, for the same reason.
+                 *
+                 * Empty is stored as null, not `[]`, so "asked for nothing"
+                 * and "this build cannot ask" are one state in the database
+                 * instead of two.
+                 */
+                'delivery_instructions' => $fulfilment === FulfilmentType::Delivery
+                    && $draft->deliveryInstructions !== []
+                        ? $draft->deliveryInstructions
+                        : null,
+
+                /*
+                 * Kept on pickup. The kitchen packs the bag either way, so
+                 * this one is true of a collected order as much as a
+                 * delivered one.
+                 */
+                'no_cutlery' => $draft->noCutlery,
                 'estimated_prep_minutes' => $cart->merchant->avg_prep_time_minutes,
                 // Stamped when the order actually reaches the kitchen, which
                 // for an online order is when the money lands, not now.

@@ -41,6 +41,8 @@ class Order extends Model
             'merchant_payout' => 'decimal:2',
             'rider_payout' => 'decimal:2',
             'rider_payout_breakdown' => 'array',
+            'delivery_instructions' => 'array',
+            'no_cutlery' => 'boolean',
             'accepted_latitude' => 'decimal:7',
             'accepted_longitude' => 'decimal:7',
             'cancellation_fee' => 'decimal:2',

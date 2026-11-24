@@ -291,6 +291,20 @@
                 {{ __('portal.orders.note') }}: {{ $order->customer_note }}
             </p>
         @endif
+        {{--
+            Shown to the kitchen because the kitchen is who packs the bag. The
+            rider is not sent this: they cannot open a sealed order to take
+            cutlery out.
+
+            Same orange as the note, because it is the same kind of thing — an
+            instruction that changes what goes in the bag — and a second colour
+            here would just be decoration competing with it.
+        --}}
+        @if ($order->no_cutlery)
+            <p class="mt-2 rounded-lg bg-brand-orange/10 border border-brand-orange/30 px-3 py-2 text-sm font-semibold text-brand-orange">
+                {{ __('portal.orders.no_cutlery') }}
+            </p>
+        @endif
         @if ($order->cancellation_reason)
             <p class="mt-3 text-sm text-red-300">{{ $order->cancellation_reason }}</p>
         @endif

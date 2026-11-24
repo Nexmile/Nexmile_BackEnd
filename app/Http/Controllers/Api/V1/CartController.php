@@ -13,9 +13,11 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Merchant;
 use App\Services\Orders\CartService;
+use App\Services\Orders\CheckoutDraft;
 use App\Services\Orders\CheckoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Cart and checkout (EP5).
@@ -145,9 +147,28 @@ class CartController extends Controller
             'note' => ['sometimes', 'nullable', 'string', 'max:500'],
             // Spend the balance first; cash on delivery covers the rest.
             'use_wallet' => ['sometimes', 'boolean'],
+
+            /*
+             * Instructions for the rider, as codes. Checked against the
+             * vocabulary below rather than with an `in:` rule on the member,
+             * so the error lands on `delivery_instructions` instead of
+             * `delivery_instructions.2` — same reasoning as the review tags.
+             *
+             * Dropped entirely on a collected order; see CheckoutService.
+             */
+            'delivery_instructions' => [
+                'sometimes', 'array',
+                'max:'.config('checkout.max_delivery_instructions'),
+            ],
+            'delivery_instructions.*' => ['string'],
+
+            // For the kitchen, not the rider.
+            'no_cutlery' => ['sometimes', 'boolean'],
         ], [
             'address_id.required_if' => 'Choose a delivery address.',
         ]);
+
+        $this->validateInstructions($request);
 
         $fulfilment = FulfilmentType::from($data['fulfilment_type']);
 
@@ -160,17 +181,55 @@ class CartController extends Controller
         $order = $this->checkout->place(
             $request->user(),
             $this->cart($request, $restaurant),
-            $fulfilment,
-            PaymentMethod::from($data['payment_method']),
-            $address,
-            $data['note'] ?? null,
-            (bool) ($data['use_wallet'] ?? false),
+            CheckoutDraft::fromRequest(
+                $data,
+                $fulfilment,
+                PaymentMethod::from($data['payment_method']),
+                $address,
+            ),
         );
 
         return response()->json([
             'message' => 'Order placed.',
             'data' => new OrderResource($order),
         ], 201);
+    }
+
+    /**
+     * Check the delivery instruction codes.
+     *
+     * Reported against `delivery_instructions`, not the index, so the app does
+     * not have to parse a key to learn which of its own chips was wrong.
+     *
+     * **This message is for a developer, not a customer.** An unknown code
+     * means the app offered a chip this build of the server has never heard
+     * of — nothing the customer did, and nothing they can fix. Showing them
+     * "Unknown delivery instruction: no_horn." would be handing a bug report
+     * to the wrong person; the app should drop codes it is not sure of before
+     * sending, and the docs say so.
+     */
+    private function validateInstructions(Request $request): void
+    {
+        $sent = $request->input('delivery_instructions');
+
+        if (! is_array($sent)) {
+            return;
+        }
+
+        $unknown = array_values(array_diff(
+            array_map('strval', $sent),
+            config('checkout.delivery_instructions'),
+        ));
+
+        if ($unknown === []) {
+            return;
+        }
+
+        // Named, not counted: "unknown instruction" alone leaves a developer
+        // diffing two lists by eye.
+        throw ValidationException::withMessages([
+            'delivery_instructions' => 'Unknown delivery instruction: '.implode(', ', $unknown).'.',
+        ]);
     }
 
     /**

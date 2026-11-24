@@ -110,6 +110,99 @@ same order twice by tapping back.
 Redis live state is written outside the transaction and its failure swallowed;
 it is a cache of MySQL.
 
+### Delivery instructions and cutlery
+
+Two fields on checkout, both optional:
+
+```json
+{
+  "delivery_instructions": ["leave_at_door", "no_bell"],
+  "no_cutlery": true
+}
+```
+
+**Codes, not labels.** The apps hold the wording, so saying `leave_at_door` in
+Tamil is a client release rather than a migration.
+
+| Code | Means |
+|---|---|
+| `leave_at_door` | leave it at the door |
+| `no_bell` | do not ring the bell |
+| `no_call` | do not call |
+| `leave_with_security` | leave it with the security guard |
+| `pet_at_home` | there is a pet in the house |
+
+Up to five (`checkout.max_delivery_instructions`), counted **as sent** — six
+copies of one code is still a 422. Duplicates that pass the cap are then
+collapsed, because a chip tapped twice is one instruction.
+
+Both are echoed back on the order, so the cart page can render **what saved**
+rather than what it sent — and on a pickup order those two are not the same
+thing, which is the next section.
+
+#### Each half goes to the person who can act on it
+
+This is the whole point of the two fields. They exist because they were
+travelling inside `customer_note`, which is one field with two audiences: the
+kitchen was reading "leave at door" and the rider was reading "less spicy", and
+`no cutlery` — a kitchen instruction — sat in a field the rider could see.
+
+| | Customer | Restaurant | Rider |
+|---|:--:|:--:|:--:|
+| `customer_note` | ✅ | ✅ | ✅ |
+| per-dish `notes` | ✅ | ✅ | ✅ |
+| `delivery_instructions` | ✅ | ❌ | ✅ once assigned |
+| `no_cutlery` | ✅ | ✅ | ❌ |
+
+The merchant API returns the **same** order resource the customer app does, so
+`delivery_instructions` is gated on the viewer owning the order rather than on
+which endpoint asked. A merchant reading `GET /merchant/orders/{id}` does not
+get the key at all. Worth knowing if you ever build a merchant app: the field
+is not missing by oversight, and a test pins it.
+
+**The rider gets the instructions inside `dropoff`**, which only appears once
+they have accepted the job. They are not on `GET /rider/orders/available`. An
+offer fans out to every rider on duty, and "leave with security" and "pet at
+home" are facts about where somebody lives — the same reason the address and
+the phone number are not on the board either.
+
+**The rider is not sent `no_cutlery`.** They cannot take cutlery out of a
+sealed bag, and a flag nobody can act on is a flag that gets ignored, including
+the day it matters. The merchant sees it on the order page, in their own
+language.
+
+#### Instructions are dropped on a collected order
+
+Not refused — dropped, and the response shows it. A pickup order has no rider,
+so "leave at the door" has nobody to instruct, and a stored instruction about a
+delivery nobody made is a row someone will eventually read as if it meant
+something. Refusing instead would lose a customer their order because the app
+forgot to clear a chip when they switched to the Pickup tab.
+
+`no_cutlery` **is** kept on pickup. The kitchen packs the bag either way.
+
+#### Refusals
+
+| Case | Key | Who it is for |
+|---|---|---|
+| Unknown code | `delivery_instructions` | **a developer** |
+| More than five | `delivery_instructions` | a developer |
+
+Keyed to the field, never `delivery_instructions.1`, so there is no index to
+parse. Like the review tags, an unknown code means **the app is ahead of the
+server** — the customer did nothing and can fix nothing, so don't show them
+this message. Drop codes you are unsure of before sending, and the error never
+fires.
+
+#### Notes still have two homes
+
+- **Per dish** — `notes` on `POST /restaurants/{id}/cart/items`, max 255. The
+  merchant sees it printed under that exact dish. "Less spicy" belongs here.
+- **Per order** — `note` on checkout, max 500, shown in one box on the merchant
+  page under the customer's details.
+
+Neither needs to carry instructions any more.
+
 ### Payment
 
 **Cash on delivery only.** No gateway is integrated yet, and offering a method

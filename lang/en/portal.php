@@ -308,6 +308,7 @@ return [
         'total' => 'Total',
         'payout' => 'Your payout',
         'note' => 'Customer note',
+        'no_cutlery' => 'Do not send cutlery',
         'delivery' => 'Delivery',
         'pickup' => 'Self-pickup',
         'accept' => 'Accept',
