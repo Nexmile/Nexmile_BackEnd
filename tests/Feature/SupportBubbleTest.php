@@ -172,6 +172,77 @@ class SupportBubbleTest extends TestCase
         $this->getJson('/api/v1/support/entry')->assertOk()->assertJsonPath('data.unread', 0);
     }
 
+    public function test_the_bubble_looks_without_starting_a_thread(): void
+    {
+        /*
+         * The home screen must not create a conversation. Opening is a
+         * deliberate act; glancing at a bubble is not, and otherwise every
+         * customer who launched the app would leave an empty thread behind.
+         */
+        Sanctum::actingAs($this->customer('13'));
+
+        $this->getJson('/api/v1/support/entry')->assertOk();
+
+        $calls = $this->sent();
+
+        $this->assertCount(1, $calls);
+        $this->assertSame('GET', $calls[0]->method());
+        $this->assertStringContainsString('conversations/current', $calls[0]->url());
+    }
+
+    public function test_a_customer_who_has_never_asked_for_help_sees_an_empty_bubble(): void
+    {
+        // `data: null` is the ordinary case, not an error and not an outage.
+        $this->bpoBody = ['data' => null, 'meta' => []];
+
+        Sanctum::actingAs($this->customer('14'));
+
+        $this->getJson('/api/v1/support/entry')
+            ->assertOk()
+            ->assertJsonPath('data.unread', 0)
+            ->assertJsonPath('data.has_open_thread', false)
+            ->assertJsonPath('data.available', true);
+    }
+
+    /* --------------------------------------------- app config -------- */
+
+    public function test_the_app_can_read_the_support_number_before_signing_in(): void
+    {
+        /*
+         * No token. Somebody who cannot sign in is exactly the person who
+         * needs to phone a human, and an auth wall in front of the phone
+         * number would put it behind the thing that is broken.
+         */
+        config()->set('site.support.phone', '+914522000000');
+
+        $this->getJson('/api/v1/app/config')
+            ->assertOk()
+            ->assertJsonPath('data.support.phone', '+914522000000')
+            ->assertJsonPath('data.support.chat_enabled', true);
+    }
+
+    public function test_an_unset_support_number_is_null_not_invented(): void
+    {
+        // The app hides its call button on null rather than dialling
+        // something that rings nowhere.
+        config()->set('site.support.phone', null);
+
+        $this->getJson('/api/v1/app/config')
+            ->assertOk()
+            ->assertJsonPath('data.support.phone', null);
+    }
+
+    public function test_the_chat_has_a_server_side_off_switch(): void
+    {
+        // Distinct from the platform being unreachable. This one is a
+        // decision, and it must not need an app release.
+        config()->set('site.support.chat_enabled', false);
+
+        $this->getJson('/api/v1/app/config')
+            ->assertOk()
+            ->assertJsonPath('data.support.chat_enabled', false);
+    }
+
     /* ------------------------------------------------ who they are ---- */
 
     public function test_the_customer_reference_is_the_signed_in_user_never_the_request(): void

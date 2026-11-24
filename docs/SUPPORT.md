@@ -118,14 +118,27 @@ it, the server queues the reply again. That covers the one case polling cannot:
 a worker killed mid-job, which leaves no failure to catch and no reply that
 will ever arrive.
 
-### unread
+### unread, and what marks it read
 
 `GET /v1/support/entry` carries `unread`: replies the customer has not looked
-at. **Fetching the thread marks it read**, so opening the chat clears the
-badge without them having to answer. It is counted from when they last opened
-it, not from when they last spoke — somebody who reads an answer and is happy
-with it says nothing, and a badge that never clears is one people learn to
-ignore.
+at. Counted from when they last **opened** the thread, not from when they last
+spoke — somebody who reads an answer and is satisfied says nothing, and a
+badge that never clears is one people learn to ignore.
+
+| Call | Marks read? |
+|---|:--:|
+| `GET /v1/support/entry` | ❌ — glancing at a home screen is not reading |
+| `POST /v1/support/conversations` | ✅ — this is the deliberate "open the chat" |
+| `GET /v1/support/conversations/{id}` | ✅ |
+| `GET .../messages` (polling) | ❌ |
+
+**So opening the chat needs no second call.** Both responses still report the
+count they are about to clear, so a badge can be animated away rather than
+vanishing before it was seen.
+
+`entry` creates nothing. A customer who has never asked for help gets
+`unread: 0` and `has_open_thread: false`, which is the ordinary case and not
+an error.
 
 ### When the app is backgrounded
 
@@ -194,6 +207,34 @@ costs real money.
   move money, on purpose, and there is no action code that would.
 
 ---
+
+## The support phone number
+
+```
+GET /v1/app/config
+```
+
+**No token.** Somebody who cannot sign in is exactly the person who needs to
+phone a human, so this sits in front of the auth wall.
+
+```json
+{ "data": {
+  "support": { "phone": "+914522000000", "email": "…", "chat_enabled": true },
+  "locales": ["en", "ta", "hi"]
+} }
+```
+
+`phone` is **null until a real number exists**. Hide the call button on null
+rather than dialling something invented — a support number that rings nowhere
+spends somebody's last patience.
+
+`chat_enabled` is the chat's deliberate off switch, server-side. It is not the
+same as `available` on `/v1/support/entry`, which reports that the platform
+cannot be reached. `chat_enabled: false` means somebody turned it off: hide
+the bubble entirely rather than showing a broken one. It is there so the chat
+can be switched on, or off, without an app release.
+
+Read it at startup and cache it. Nothing in it is per-customer.
 
 ## For whoever operates this
 

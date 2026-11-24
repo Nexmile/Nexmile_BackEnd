@@ -147,7 +147,7 @@ class AppServiceProvider extends ServiceProvider
          * edit the same profile. A merchant does neither — they use
          * /merchant/login with a password.
          */
-        $shared = ['api/v1/auth', 'api/v1/profile', 'api/v1/devices'];
+        $shared = ['api/v1/auth', 'api/v1/profile', 'api/v1/devices', 'api/v1/app'];
 
         $apis = [
             'customer' => [

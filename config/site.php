@@ -56,6 +56,22 @@ return [
      * and are not: plain info@ and investors@ were never created, so mail to
      * them bounces. Check the mail admin before tidying any of these.
      */
+    /*
+     * Shown in the app, served by /v1/app/config.
+     *
+     * The number lives in the environment rather than here, because it
+     * changes with a SIM and not with a release — and because an empty one
+     * is a legitimate state: the app hides its call button rather than
+     * dialling something invented.
+     */
+    'support' => [
+        'phone' => env('SUPPORT_PHONE'),
+
+        // The chat's deliberate off switch. Distinct from the platform being
+        // unreachable, which the app learns from /v1/support/entry.
+        'chat_enabled' => env('SUPPORT_CHAT_ENABLED', true),
+    ],
+
     'email' => [
         'info' => 'info.info@nexmile.in',
         'investors' => 'investor.investor@nexmile.in',

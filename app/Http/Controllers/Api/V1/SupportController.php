@@ -40,7 +40,7 @@ class SupportController extends Controller
      */
     public function entry(Request $request): JsonResponse
     {
-        $thread = $this->bpo->open($request->user(), null, $this->language($request));
+        $thread = $this->bpo->current($request->user());
 
         if ($thread === null) {
             // Support is down. The bubble still appears — it is the route to
@@ -53,15 +53,22 @@ class SupportController extends Controller
             ]]);
         }
 
+        /*
+         * `data` is null when the customer has never opened a thread, which
+         * is most customers most of the time. That is not an error and not
+         * an outage — the bubble simply has nothing waiting.
+         */
+        $open = $thread['data'] ?? null;
+
         return response()->json(['data' => [
             /*
              * Counted by the platform, from when the customer last opened
              * the thread. Not recomputed here: two places deciding what
              * "unread" means is two places to get it wrong.
              */
-            'unread' => (int) ($thread['data']['unread'] ?? 0),
+            'unread' => (int) ($open['unread'] ?? 0),
             'label' => __('support.label'),
-            'has_open_thread' => ($thread['data']['status'] ?? null) !== 'closed',
+            'has_open_thread' => $open !== null && ($open['status'] ?? null) !== 'closed',
             'available' => true,
         ]]);
     }

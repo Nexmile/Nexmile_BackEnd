@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Internal\OrderContextController as InternalOrderContextController;
 use App\Http\Controllers\Api\Internal\SupportActionController as InternalSupportActionController;
 use App\Http\Controllers\Api\V1\AddressController;
+use App\Http\Controllers\Api\V1\AppConfigController;
 use App\Http\Controllers\Api\V1\Admin\DispatchController as AdminDispatchController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Auth\OtpAuthController;
@@ -56,6 +57,17 @@ Route::post('webhooks/razorpay', [WebhookController::class, 'razorpay'])->name('
 
 // Names are prefixed with `api.` so they never collide with the web routes.
 Route::prefix('v1')->name('api.v1.')->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | App configuration — read at startup, no token needed
+    |--------------------------------------------------------------------------
+    |
+    | The support number has to be reachable before anybody has signed in,
+    | which is exactly when somebody is stuck and wants to phone a human.
+    | Nothing here is private or per-customer.
+    */
+    Route::get('app/config', [AppConfigController::class, 'show'])->name('app.config');
 
     /*
     |--------------------------------------------------------------------------

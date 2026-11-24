@@ -47,6 +47,20 @@ class BpoClient
         ]));
     }
 
+    /**
+     * The open thread without opening one.
+     *
+     * For the bubble: it creates nothing and marks nothing read. Using
+     * `open()` here would give every customer who loaded the home screen an
+     * empty conversation, and would clear a badge they had not looked at.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function current(User $customer): ?array
+    {
+        return $this->get('conversations/current', ['customer_ref' => $this->ref($customer)]);
+    }
+
     /** @return array<string, mixed>|null */
     public function conversation(User $customer, string $id): ?array
     {
