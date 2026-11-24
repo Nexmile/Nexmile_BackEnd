@@ -171,7 +171,10 @@ class AppServiceProvider extends ServiceProvider
                     'api/v1/wallet',
                     // Rating the app, from the profile page. Preferences ride
                     // in on the shared api/v1/profile prefix above.
-                    'api/v1/feedback'],
+                    'api/v1/feedback',
+                    // The support bubble. Proxied to the BPO platform, but it
+                    // is the customer app that calls it.
+                    'api/v1/support'],
             ],
             'rider' => [
                 'title' => 'Nexmile — Rider app',
