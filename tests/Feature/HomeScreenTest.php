@@ -281,6 +281,54 @@ class HomeScreenTest extends TestCase
             ->assertJsonPath('data.0.rating_count', 0);
     }
 
+    public function test_a_rating_reaches_every_list_the_app_shows_a_card_in(): void
+    {
+        /*
+         * Reported from the app as "list responses carry no rating". They
+         * do — every list renders RestaurantResource, which has carried both
+         * fields since reviews landed. What is missing in practice is
+         * ratings: a restaurant needs three before one is published, and no
+         * shop has three yet, so the honest answer everywhere is null.
+         *
+         * This pins the shape across all three lists so that stays a data
+         * question rather than becoming a contract question again.
+         */
+        $rated = $this->restaurant();
+        $rated->forceFill(['rating' => 4.6, 'rating_count' => 12])->save();
+
+        $customer = $this->customer();
+        $customer->favourites()->attach($rated->id);
+
+        Sanctum::actingAs($customer);
+
+        // 1. Nearby.
+        $this->getJson('/api/v1/restaurants?'.$this->query())
+            ->assertOk()
+            ->assertJsonPath('data.0.rating', 4.6)
+            ->assertJsonPath('data.0.rating_count', 12);
+
+        // 2. Favourites.
+        $this->getJson('/api/v1/favourites')
+            ->assertOk()
+            ->assertJsonPath('data.0.rating', 4.6)
+            ->assertJsonPath('data.0.rating_count', 12);
+
+        // 3. Every restaurant section on the home screen, whichever they are.
+        $sections = collect($this->getJson('/api/v1/home?'.$this->query())->assertOk()->json('data.sections'))
+            ->where('type', 'restaurants');
+
+        $this->assertTrue($sections->isNotEmpty(), 'no restaurant section on the home screen');
+
+        foreach ($sections as $section) {
+            foreach ($section['items'] as $card) {
+                $this->assertArrayHasKey('rating', $card);
+                $this->assertArrayHasKey('rating_count', $card);
+                $this->assertSame(4.6, $card['rating']);
+                $this->assertSame(12, $card['rating_count']);
+            }
+        }
+    }
+
     public function test_a_dish_search_names_the_dish_that_matched(): void
     {
         /*
