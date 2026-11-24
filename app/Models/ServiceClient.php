@@ -58,6 +58,7 @@ class ServiceClient extends Model implements Authenticatable
             'orders.read' => 'Read an order, its status and its timestamps',
             'merchants.read' => 'Read a restaurant\'s profile and operating state',
             'riders.read' => 'Read the delivery state of an order\'s rider',
+            'support.notify' => 'Tell a customer their support thread has a reply',
             'tickets.write' => 'Raise a support case against an order',
             'refunds.check' => 'Ask whether an order is eligible for a refund',
         ];

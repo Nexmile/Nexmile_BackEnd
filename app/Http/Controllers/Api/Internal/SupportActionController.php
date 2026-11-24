@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api\Internal;
 
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\RiderReport;
+use App\Models\User;
+use App\Services\Push\OrderNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,8 +29,50 @@ use Illuminate\Validation\Rule;
 class SupportActionController extends Controller
 {
     /**
-     * Raise a support case against an order
+     * Tell a customer their support thread has a reply
      *
+     * The one thing the BPO platform may ask Nexmile to send to a phone, and
+     * it is deliberately thin: a customer id and a conversation id. No
+     * message text crosses this door.
+     *
+     * The reason is the lock screen. A support conversation can be about a
+     * missing delivery, a complaint about a worker, or money — and a
+     * notification is read by whoever is holding the phone, which is not
+     * always the person who typed the question. The push says a reply is
+     * waiting; reading it takes opening the app.
+     *
+     * Nexmile decides whether to send at all. Device tokens, notification
+     * preferences and languages live here and are not the BPO's business.
+     */
+    public function notifyReply(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'customer_ref' => ['required', 'string', 'max:64'],
+            'conversation_id' => ['required', 'string', 'max:64'],
+        ]);
+
+        $customer = User::query()
+            ->where('id', $data['customer_ref'])
+            ->where('role', UserRole::Customer)
+            ->first();
+
+        /*
+         * A deleted or unknown customer is a 200, not a 404.
+         *
+         * There is nothing for the caller to do about it and nothing to
+         * retry, and answering "no such customer" to a machine holding a
+         * customer id turns this endpoint into a way to check which ids
+         * exist.
+         */
+        if ($customer !== null) {
+            app(OrderNotifier::class)->supportReplied($customer, $data['conversation_id']);
+        }
+
+        return response()->json(['data' => ['sent' => $customer !== null]]);
+    }
+
+    /**
+     * Raise a support case against an order     *
      * Creates the same record the customer app creates when a customer
      * reports a problem with their delivery, so one queue holds both and the
      * rider-conduct workflow already built around it keeps working.

@@ -18,11 +18,16 @@ use App\Services\Push\LogPushSender;
 use App\Services\Push\NullPushSender;
 use App\Services\Sms\LogSmsSender;
 use App\Services\Sms\NullSmsSender;
+use App\Services\Support\BpoClient;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,6 +36,27 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        /*
+         * The support platform. Built lazily and refused when it has no
+         * credential, rather than quietly returning null — an unconfigured
+         * client looks exactly like an outage, and somebody would spend an
+         * afternoon on the wrong problem.
+         */
+        $this->app->singleton(BpoClient::class, function () {
+            $token = config('support.token');
+
+            if (blank($token)) {
+                throw new RuntimeException(
+                    'BPO_SERVICE_TOKEN is not set. It must match the same value in the BPO platform.'
+                );
+            }
+
+            return new BpoClient(
+                baseUrl: (string) config('support.base_url'),
+                token: (string) $token,
+                timeout: (int) config('support.timeout_seconds'),
+            );
+        });
         // Swap SMS_DRIVER to add a real gateway; nothing else changes.
         $this->app->bind(SmsSender::class, function () {
             return match (config('sms.driver')) {
@@ -95,6 +121,18 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerApiDocs();
+
+        /*
+         * Support messages, per customer.
+         *
+         * Each one may cost a model call, so this caps a bill as much as it
+         * caps load. Keyed on the user rather than the IP: a whole hostel on
+         * one connection is many customers, and throttling them together
+         * would take support away from people who had done nothing.
+         */
+        RateLimiter::for('support', fn (Request $request) => Limit::perMinute(
+            (int) config('support.messages_per_minute')
+        )->by((string) $request->user()?->id));
     }
 
     /**

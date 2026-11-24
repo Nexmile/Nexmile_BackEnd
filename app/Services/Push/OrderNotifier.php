@@ -7,6 +7,7 @@ use App\Enums\RiderStatus;
 use App\Jobs\RequestOrderReview;
 use App\Models\Order;
 use App\Models\Rider;
+use App\Models\User;
 
 /**
  * The moments worth interrupting someone for.
@@ -241,6 +242,28 @@ class OrderNotifier
             'push.customer.review_requested',
             ['restaurant' => $order->merchant?->business_name ?? ''],
             ['type' => 'order.review_requested', 'order_id' => (string) $order->id],
+        );
+    }
+
+    /**
+     * Support replied while the app was closed.
+     *
+     * Not an order push, but it rides the same shape — `type` plus an id —
+     * so an app that opens the right screen for any of the others needs one
+     * more case and no new parsing.
+     *
+     * No preview of the reply in the body. A notification on a lock screen is
+     * read by whoever is holding the phone, and a support conversation can be
+     * about a missing delivery, a complaint or a refund.
+     */
+    public function supportReplied(?User $customer, string $conversationId): void
+    {
+        $this->push->toUser(
+            $customer,
+            PushService::CUSTOMER,
+            'push.customer.support_reply',
+            [],
+            ['type' => 'support.reply', 'conversation_id' => $conversationId],
         );
     }
 

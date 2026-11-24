@@ -49,6 +49,10 @@ return [
     ],
 
     'customer' => [
+        'support_reply' => [
+            'title' => 'नेक्सेमाइल सहायता',
+            'body' => 'आपके लिए एक जवाब आया है।',
+        ],
         'accepted' => [
             'title' => 'ऑर्डर स्वीकार हुआ',
             'body' => ':restaurant पका रहा है। लगभग :minutes मिनट।',

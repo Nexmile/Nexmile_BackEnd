@@ -22,6 +22,7 @@ like a broken integration. That is not hypothetical; it cost a round trip.
 | `order.rider_outside` | ✅ | | | The rider is at the door |
 | `order.delivered` | ✅ | | | Handed over |
 | `order.review_requested` | ✅ | | | ~45 min later, if still unrated |
+| `support.reply` | ✅ | | | a support thread has an answer waiting |
 | `order.cancelled` | ✅ | | | Cancelled after acceptance |
 | `ORDER_OFFER` | | | ✅ | A rider is being rung for an order (data only) |
 | `OFFER_CANCELLED` | | | ✅ | That card is withdrawn (data only) |
@@ -48,13 +49,21 @@ time, so a rider build should handle both and will see one.
 is about the rider rather than an order, and `test`. So an app can open the
 order screen from any of the rest without checking which type it was.
 
-**The customer app receives nine of them.** `order.placed` is the "new
+**The customer app receives ten of them.** `order.placed` is the "new
 order in your kitchen" alert for a shop whose tablet is on a shelf, and
 `order.offer` is the one that justifies the whole feature — an order going cold
 until a rider's phone rings.
 
 `order.rider_assigned` is the only type sent to two apps, as two separate
 messages with different wording.
+
+**`support.reply` carries no message text.** Only `conversation_id`. A
+notification is read by whoever is holding the phone, and a support thread can
+be about a complaint, a missing delivery or money — so it says a reply is
+waiting, and reading it takes opening the app.
+
+It is also not sent while the app is in the foreground: the thread is already
+polling, and two sources would render the same message twice.
 
 **`order.review_requested` is the only one that may not arrive.** It is
 scheduled when an order is delivered and re-checked when it fires, so an

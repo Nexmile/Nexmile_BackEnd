@@ -49,6 +49,10 @@ return [
     ],
 
     'customer' => [
+        'support_reply' => [
+            'title' => 'நெக்ஸ்மைல் உதவி',
+            'body' => 'உங்களுக்கு ஒரு பதில் வந்துள்ளது.',
+        ],
         'accepted' => [
             'title' => 'ஆர்டர் ஏற்கப்பட்டது',
             'body' => ':restaurant சமைக்கிறது. சுமார் :minutes நிமிடங்கள்.',

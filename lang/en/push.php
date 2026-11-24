@@ -57,6 +57,10 @@ return [
     ],
 
     'customer' => [
+        'support_reply' => [
+            'title' => 'Nexmile support',
+            'body' => 'There is a reply waiting for you.',
+        ],
         'accepted' => [
             'title' => 'Order accepted',
             'body' => ':restaurant is cooking. About :minutes minutes.',

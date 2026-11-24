@@ -60,6 +60,7 @@ otherwise discover the typo in production.
 | `orders.read` | An order, its status and timestamps; a customer's recent orders |
 | `merchants.read` | A restaurant's profile and operating state |
 | `riders.read` | The delivery state of an order |
+| `support.notify` | Ask Nexmile to tell a customer their support thread has a reply |
 | `tickets.write` | Raise a support case against an order |
 | `refunds.check` | Ask whether an order is eligible for a refund |
 
@@ -72,6 +73,7 @@ otherwise discover the typo in production.
 | GET | `/orders/{order}` | `orders.read` |
 | GET | `/merchants/{merchant}` | `merchants.read` |
 | GET | `/orders/{order}/delivery-status` | `riders.read` |
+| POST | `/support-notifications` | `support.notify` |
 | POST | `/support-tickets` | `tickets.write` |
 | POST | `/refunds/eligibility-check` | `refunds.check` |
 

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Rider\PayoutController as RiderPayoutController;
 use App\Http\Controllers\Api\V1\Rider\ProfileController as RiderProfileController;
 use App\Http\Controllers\Api\V1\Rider\ReferralController as RiderReferralController;
 use App\Http\Controllers\Api\V1\RiderReportController;
+use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -93,6 +94,30 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // Rate the app. Not a review of a restaurant, a rider or an order.
         Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+
+        /*
+        |----------------------------------------------------------------------
+        | In-app support — the bubble
+        |----------------------------------------------------------------------
+        |
+        | Proxied to the BPO platform, which owns the conversation and the AI.
+        | Nothing here is stored in Nexmile: this layer establishes who the
+        | customer is and whether an order is theirs, and passes the rest on.
+        |
+        | Sending is throttled because each message may cost a model call — a
+        | limit on the bill as much as on load.
+        */
+        Route::get('support/entry', [SupportController::class, 'entry'])->name('support.entry');
+        Route::post('support/conversations', [SupportController::class, 'store'])->name('support.store');
+        Route::get('support/conversations/{conversation}', [SupportController::class, 'show'])->name('support.show');
+        Route::get('support/conversations/{conversation}/messages', [SupportController::class, 'messages'])->name('support.messages');
+
+        Route::post('support/conversations/{conversation}/messages', [SupportController::class, 'send'])
+            ->middleware('throttle:support')->name('support.send');
+
+        Route::post('support/conversations/{conversation}/handover', [SupportController::class, 'handover'])->name('support.handover');
+        Route::post('support/conversations/{conversation}/close', [SupportController::class, 'close'])->name('support.close');
+        Route::post('support/messages/{message}/feedback', [SupportController::class, 'feedback'])->name('support.feedback');
 
         /*
         |----------------------------------------------------------------------
@@ -465,6 +490,11 @@ Route::prefix('internal/v1')->name('internal.v1.')->middleware('auth:sanctum')->
 
     Route::post('support-tickets', [InternalSupportActionController::class, 'ticket'])
         ->middleware('service:tickets.write')->name('support-tickets.store');
+
+    // The BPO platform asking us to nudge a customer. No message text
+    // crosses this door; see the controller.
+    Route::post('support-notifications', [InternalSupportActionController::class, 'notifyReply'])
+        ->middleware('service:support.notify')->name('support-notifications.store');
 
     // Read-only, and staying that way. Nexmile issues refunds; callers ask.
     Route::post('refunds/eligibility-check', [InternalSupportActionController::class, 'refundEligibility'])
