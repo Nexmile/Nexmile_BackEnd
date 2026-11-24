@@ -153,22 +153,23 @@ class SupportBubbleTest extends TestCase
             ->assertJsonPath('data.unread', 0);
     }
 
-    public function test_replies_since_the_customer_last_spoke_are_counted_as_unread(): void
+    public function test_an_unread_count_the_platform_does_not_send_is_zero(): void
     {
         /*
-         * There is no read receipt on either side, so "unread" can only mean
-         * "replies you have not answered". The last thing the customer typed
-         * is the only marker that exists.
+         * This used to count "replies since the customer last spoke", here,
+         * from the message list. That rule left a badge on the bubble
+         * forever for anyone who read an answer and was satisfied by it, and
+         * the counting now happens on the platform against a read marker.
+         *
+         * What is left to check here is the absence case: an older platform,
+         * or a thread with nothing in it, must read as nothing to see rather
+         * than as an error.
          */
-        $this->fakeBpo(['messages' => [
-            ['sender' => 'customer', 'content' => 'where is it'],
-            ['sender' => 'ai', 'content' => 'on its way'],
-            ['sender' => 'system', 'content' => 'passed to the team'],
-        ]]);
+        $this->fakeBpo();
 
         Sanctum::actingAs($this->customer());
 
-        $this->getJson('/api/v1/support/entry')->assertOk()->assertJsonPath('data.unread', 2);
+        $this->getJson('/api/v1/support/entry')->assertOk()->assertJsonPath('data.unread', 0);
     }
 
     /* ------------------------------------------------ who they are ---- */
@@ -345,6 +346,61 @@ class SupportBubbleTest extends TestCase
 
         // And nothing was sent anywhere.
         $this->assertSame([], $this->sent());
+    }
+
+    public function test_the_order_number_is_sent_so_a_switch_can_be_worded(): void
+    {
+        // The platform holds an id. Without the label it would have to call
+        // back here for one, inside a request a customer is waiting on.
+        Sanctum::actingAs($user = $this->customer('07'));
+        $order = $this->orderFor($user);
+
+        $this->postJson('/api/v1/support/conversations', ['order_id' => $order->id])->assertOk();
+
+        $this->assertSame($order->order_number, $this->lastBody()['order_label']);
+    }
+
+    public function test_a_strangers_order_number_is_not_sent_either(): void
+    {
+        $stranger = $this->customer('08');
+        $order = $this->orderFor($stranger);
+
+        Sanctum::actingAs($this->customer('09'));
+
+        $this->postJson('/api/v1/support/conversations', ['order_id' => $order->id])->assertOk();
+
+        $body = $this->lastBody();
+
+        $this->assertArrayNotHasKey('order_ref', $body);
+        $this->assertArrayNotHasKey('order_label', $body);
+    }
+
+    public function test_feedback_takes_value_as_the_app_sends_it(): void
+    {
+        Sanctum::actingAs($this->customer('10'));
+
+        $this->postJson('/api/v1/support/messages/abc/feedback', ['value' => 'up'])->assertOk();
+
+        $this->assertSame('up', $this->lastBody()['feedback']);
+    }
+
+    public function test_feedback_refuses_anything_but_a_thumb(): void
+    {
+        Sanctum::actingAs($this->customer('11'));
+
+        $this->postJson('/api/v1/support/messages/abc/feedback', ['value' => 'sideways'])
+            ->assertStatus(422);
+    }
+
+    public function test_the_unread_count_comes_from_the_platform(): void
+    {
+        // Counted in one place. Two places deciding what unread means is two
+        // places to get it wrong.
+        $this->fakeBpo(['unread' => 3]);
+
+        Sanctum::actingAs($this->customer('12'));
+
+        $this->getJson('/api/v1/support/entry')->assertOk()->assertJsonPath('data.unread', 3);
     }
 
     /* -------------------------------------- the notification door ----- */

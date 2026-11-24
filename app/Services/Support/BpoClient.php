@@ -31,11 +31,18 @@ class BpoClient
     ) {}
 
     /** @return array<string, mixed>|null */
-    public function open(User $customer, ?int $orderId, string $language): ?array
+    /**
+     * `$orderLabel` is the human order number, used only to word the system
+     * line when a thread changes subject. The BPO holds an id and would
+     * otherwise have to call back here for a label, inside a request a
+     * customer is waiting on.
+     */
+    public function open(User $customer, ?int $orderId, string $language, ?string $orderLabel = null): ?array
     {
         return $this->post('conversations', array_filter([
             'customer_ref' => $this->ref($customer),
             'order_ref' => $orderId === null ? null : (string) $orderId,
+            'order_label' => $orderLabel,
             'language' => $language,
         ]));
     }

@@ -26,7 +26,7 @@ All under `/v1/support`, all behind the customer's own Sanctum token.
 | `POST` | `/v1/support/conversations/{id}/messages` | send; answers **202** |
 | `POST` | `/v1/support/conversations/{id}/handover` | ask for a person |
 | `POST` | `/v1/support/conversations/{id}/close` | mark it resolved |
-| `POST` | `/v1/support/messages/{id}/feedback` | `up` or `down` on an AI reply |
+| `POST` | `/v1/support/messages/{id}/feedback` | `{"value": "up"}` or `"down"` on an AI reply |
 
 ### A message
 
@@ -61,6 +61,11 @@ POST /v1/support/conversations
 
 Idempotent. One open thread per customer, so call it from the bubble, from an
 order screen and from the help menu without checking first.
+
+**A different `order_id` switches the thread's subject** and adds a `system`
+line saying so. It used to keep the first order and ignore the second, which
+meant a customer with yesterday's thread still open got answers about
+yesterday's dinner.
 
 **Pass `order_id` wherever an order is on screen.** It is the difference
 between "how can I help?" and an answer about the order they are looking at.
@@ -107,6 +112,21 @@ is a battery complaint and a bill.
 flight, so an app killed and reopened mid-answer can restore the typing
 indicator instead of showing a thread that looks finished.
 
+**After a timeout, resend the same message with the same `client_id`.** It
+will not be stored twice, and if nothing is in flight and nothing has answered
+it, the server queues the reply again. That covers the one case polling cannot:
+a worker killed mid-job, which leaves no failure to catch and no reply that
+will ever arrive.
+
+### unread
+
+`GET /v1/support/entry` carries `unread`: replies the customer has not looked
+at. **Fetching the thread marks it read**, so opening the chat clears the
+badge without them having to answer. It is counted from when they last opened
+it, not from when they last spoke — somebody who reads an answer and is happy
+with it says nothing, and a badge that never clears is one people learn to
+ignore.
+
 ### When the app is backgrounded
 
 ```json
@@ -147,7 +167,8 @@ keep.
 |---|---|---|
 | Support platform unreachable | `503` | `message` verbatim, plus the phone number |
 | Too many messages | `429` | "give it a moment" — do not auto-retry |
-| Thread closed | `404` or `409` | offer to start a new one |
+| Thread closed | `409` | offer to start a new one |
+| Support platform up, model down | `202` | normal. The thread hands over to a person and the message is kept |
 | No network | — | keep the message in the thread marked **not sent**, with retry |
 
 The last one matters most. A customer whose message vanished will send it

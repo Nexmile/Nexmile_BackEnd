@@ -53,18 +53,13 @@ class SupportController extends Controller
             ]]);
         }
 
-        $messages = $thread['data']['messages'] ?? [];
-
         return response()->json(['data' => [
             /*
-             * Everything since the customer last said something.
-             *
-             * Counted here rather than stored, because "unread" for a thread
-             * nobody has a read receipt for is really "replies you have not
-             * seen", and the last thing the customer typed is the only
-             * marker either side has.
+             * Counted by the platform, from when the customer last opened
+             * the thread. Not recomputed here: two places deciding what
+             * "unread" means is two places to get it wrong.
              */
-            'unread' => $this->unread($messages),
+            'unread' => (int) ($thread['data']['unread'] ?? 0),
             'label' => __('support.label'),
             'has_open_thread' => ($thread['data']['status'] ?? null) !== 'closed',
             'available' => true,
@@ -89,8 +84,9 @@ class SupportController extends Controller
         ]);
 
         $orderId = $data['order_id'] ?? null;
+        $order = $orderId === null ? null : $this->ownOrder($request, $orderId);
 
-        if ($orderId !== null && ! $this->ownsOrder($request, $orderId)) {
+        if ($orderId !== null && $order === null) {
             /*
              * Silently dropped rather than refused. The customer gets their
              * thread; it simply has no order attached. Refusing would turn a
@@ -101,7 +97,7 @@ class SupportController extends Controller
             $orderId = null;
         }
 
-        $thread = $this->bpo->open($request->user(), $orderId, $this->language($request));
+        $thread = $this->bpo->open($request->user(), $orderId, $this->language($request), $order?->order_number);
 
         return $thread === null
             ? $this->unavailable()
@@ -207,9 +203,11 @@ class SupportController extends Controller
     /** Was that answer any good? */
     public function feedback(Request $request, string $message): JsonResponse
     {
-        $data = $request->validate(['feedback' => ['required', 'in:up,down']]);
+        // `value`, not `feedback`: the endpoint is already called
+        // feedback, and repeating the word in the body reads like a stutter.
+        $data = $request->validate(['value' => ['required', 'in:up,down']]);
 
-        $result = $this->bpo->feedback($request->user(), $message, $data['feedback']);
+        $result = $this->bpo->feedback($request->user(), $message, $data['value']);
 
         return $result === null
             ? $this->unavailable()
@@ -222,32 +220,12 @@ class SupportController extends Controller
      * Scoped through the user, like every other order lookup in this API. An
      * order id is not a licence to discuss somebody else's dinner with an AI.
      */
-    private function ownsOrder(Request $request, int $orderId): bool
+    private function ownOrder(Request $request, int $orderId): ?Order
     {
         return Order::query()
             ->where('id', $orderId)
             ->where('user_id', $request->user()->id)
-            ->exists();
-    }
-
-    /**
-     * Replies since the customer last spoke.
-     *
-     * @param  array<int, array<string, mixed>>  $messages
-     */
-    private function unread(array $messages): int
-    {
-        $count = 0;
-
-        foreach (array_reverse($messages) as $message) {
-            if (($message['sender'] ?? null) === 'customer') {
-                break;
-            }
-
-            $count++;
-        }
-
-        return $count;
+            ->first(['id', 'order_number']);
     }
 
     private function language(Request $request): string
