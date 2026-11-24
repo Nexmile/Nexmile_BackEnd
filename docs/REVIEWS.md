@@ -53,20 +53,39 @@ and the response shows that.
 
 ### Refusals
 
-All `422`, with a message in `errors` that is written to be shown to the
-customer as it is.
+All `422`. The key tells you who the message was written for, and the two
+groups are not interchangeable.
+
+**Safe to show the customer as written**, translated to their language:
 
 | Case | Key |
 |---|---|
 | Not delivered yet | `order` |
 | Already reviewed | `order` |
 | Past the window | `order` — the message names the number of days |
+
+**Not for the customer** — these are developer messages, in English, and they
+should never reach a screen:
+
+| Case | Key |
+|---|---|
 | Unknown food tag | `tags` |
 | Unknown delivery tag | `rider.tags` |
 
+A tag error means **the app is ahead of the server** — it offered a code this
+build of the server has never heard of. The customer did nothing wrong and
+there is nothing they can do about it, so "Unknown tag: cold_brew." in a
+toast is a bug report delivered to the wrong person.
+
+Two things follow for the app. Drop unknown codes before sending, the same way
+the public review list already skips them on the way in, and the error stops
+firing at all. And if one does fire anyway, keep the review: resend it without
+the `tags` array rather than losing a rating and a comment the customer took
+the trouble to write, and log it for whoever ships the next server.
+
 Tag errors are reported against the field, not the index: `tags`, never
-`tags.2`. An unknown code means the app is ahead of the server, and the message
-names the codes it did not recognise.
+`tags.2`, so there is no key to parse — and the message names the codes it did
+not recognise, which is exactly why it reads like a developer note. It is one.
 
 ---
 
