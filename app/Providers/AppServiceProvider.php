@@ -27,7 +27,6 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,26 +36,23 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         /*
-         * The support platform. Built lazily and refused when it has no
-         * credential, rather than quietly returning null — an unconfigured
-         * client looks exactly like an outage, and somebody would spend an
-         * afternoon on the wrong problem.
+         * The support platform.
+         *
+         * Built even with no credential, and the client then answers null to
+         * everything, which the controller turns into "support is
+         * unavailable" and a phone number. Refusing to construct would turn
+         * every support request into a 500 on a backend that is otherwise
+         * perfectly healthy — and the natural deployment order is this
+         * application first, before the token exists on either side.
+         *
+         * It is not silent: the client logs a warning on each call, so an
+         * unconfigured install does not read as an outage.
          */
-        $this->app->singleton(BpoClient::class, function () {
-            $token = config('support.token');
-
-            if (blank($token)) {
-                throw new RuntimeException(
-                    'BPO_SERVICE_TOKEN is not set. It must match the same value in the BPO platform.'
-                );
-            }
-
-            return new BpoClient(
-                baseUrl: (string) config('support.base_url'),
-                token: (string) $token,
-                timeout: (int) config('support.timeout_seconds'),
-            );
-        });
+        $this->app->singleton(BpoClient::class, fn () => new BpoClient(
+            baseUrl: (string) config('support.base_url'),
+            token: (string) (config('support.token') ?? ''),
+            timeout: (int) config('support.timeout_seconds'),
+        ));
         // Swap SMS_DRIVER to add a real gateway; nothing else changes.
         $this->app->bind(SmsSender::class, function () {
             return match (config('sms.driver')) {

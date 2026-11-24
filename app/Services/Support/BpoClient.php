@@ -117,6 +117,27 @@ class BpoClient
      */
     private function unwrap(callable $call, string $path): ?array
     {
+        /*
+         * No credential configured. Answered as "support is unavailable"
+         * rather than thrown.
+         *
+         * This is the opposite of how the BPO treats a missing Nexmile token,
+         * and the difference is what the credential is for. Without it the
+         * BPO cannot do its job at all, so failing to boot is right there.
+         * Here it disables one optional feature, and a 500 on the support
+         * endpoint would take out the screen a customer reaches for when
+         * something has already gone wrong — to protect a feature that is
+         * not switched on.
+         *
+         * Logged as a warning so this is not mistaken for an outage, which
+         * is the real cost of failing quietly.
+         */
+        if ($this->token === '') {
+            Log::warning('BPO_SERVICE_TOKEN is not set; in-app support is disabled.', ['path' => $path]);
+
+            return null;
+        }
+
         try {
             $response = $call($this->request());
         } catch (ConnectionException $e) {

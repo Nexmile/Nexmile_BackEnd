@@ -326,6 +326,27 @@ class SupportBubbleTest extends TestCase
         $this->assertSame([], $this->sent());
     }
 
+    public function test_an_unconfigured_backend_says_support_is_unavailable(): void
+    {
+        /*
+         * The natural deployment order is this application first, before the
+         * shared secret exists on either side. Without this, every support
+         * request on an otherwise healthy backend would be a 500 — on the one
+         * screen a customer reaches for when something has already gone
+         * wrong.
+         */
+        config()->set('support.token', null);
+
+        Sanctum::actingAs($this->customer('06'));
+
+        $this->postJson('/api/v1/support/conversations/abc/messages', ['content' => 'hello'])
+            ->assertStatus(503)
+            ->assertJsonPath('message', __('support.unavailable'));
+
+        // And nothing was sent anywhere.
+        $this->assertSame([], $this->sent());
+    }
+
     /* -------------------------------------- the notification door ----- */
 
     public function test_the_bpo_can_ask_us_to_nudge_a_customer(): void
