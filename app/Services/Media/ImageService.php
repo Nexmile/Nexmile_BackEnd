@@ -29,50 +29,57 @@ class ImageService
      * banner created with an empty path and filled in afterwards survives a
      * failed upload as a permanent blank.
      */
-    public function store(string $directory, UploadedFile $file): string
+    public function store(string $directory, UploadedFile $file, ?string $variant = null): string
     {
-        $name = Str::uuid()->toString().'.'.$file->getClientOriginalExtension();
-
-        $path = $file->storeAs($directory, $name, [
-            'disk' => $this->disk(),
-            'visibility' => 'private',
-        ]);
-
-        if ($path === false || $path === '') {
-            throw new RuntimeException("Could not store the uploaded file in {$directory}.");
-        }
-
-        return $path;
+        return $this->write($directory, $file, $variant);
     }
 
-    public function attach(Model $model, string $column, string $directory, UploadedFile $file): Model
+    public function attach(Model $model, string $column, string $directory, UploadedFile $file, ?string $variant = null): Model
     {
         $previous = $model->getAttribute($column);
 
-        // A random name, not the uploaded one: user-supplied filenames can
-        // carry path separators and a second extension.
-        $name = Str::uuid()->toString().'.'.$file->getClientOriginalExtension();
-
-        $path = $file->storeAs($directory, $name, [
-            'disk' => $this->disk(),
-            'visibility' => 'private',
-        ]);
-
-        /*
-         * storeAs returns false when the write fails — a bucket permission, a
-         * full disk, a network blip. Writing that straight to the column left
-         * the record pointing at nothing and reporting success, which is how
-         * banners reached the app with a null image_url and no error anywhere.
-         */
-        if ($path === false || $path === '') {
-            throw new RuntimeException("Could not store the uploaded file in {$directory}.");
-        }
+        $path = $this->write($directory, $file, $variant);
 
         $model->forceFill([$column => $path])->save();
 
         $this->deleteObject($previous);
 
         return $model;
+    }
+
+    /**
+     * Resize, then store.
+     *
+     * One place, so an upload cannot reach the bucket at its original size
+     * by arriving through a route somebody added later.
+     *
+     * `$variant` names the settings to use and defaults to the directory,
+     * which is right almost everywhere — `menu/41` finds the menu settings.
+     * It is passed explicitly where a directory holds two different kinds of
+     * image: a logo and a storefront photo share a folder and are shown at
+     * very different sizes.
+     */
+    protected function write(string $directory, UploadedFile $file, ?string $variant = null): string
+    {
+        $optimised = app(ImageOptimiser::class)->optimise($file, $variant ?? $directory);
+
+        // A random name, not the uploaded one: user-supplied filenames can
+        // carry path separators and a second extension.
+        $path = trim($directory, '/').'/'.Str::uuid()->toString().'.'.$optimised['extension'];
+
+        /*
+         * `put` returns false when the write fails — a bucket permission, a
+         * full disk, a network blip. Writing that straight to a column left
+         * the record pointing at nothing and reporting success, which is how
+         * banners reached the app with a null image_url and no error anywhere.
+         */
+        $written = Storage::disk($this->disk())->put($path, $optimised['contents'], 'private');
+
+        if ($written === false) {
+            throw new RuntimeException("Could not store the uploaded file in {$directory}.");
+        }
+
+        return $path;
     }
 
     public function detach(Model $model, string $column): Model

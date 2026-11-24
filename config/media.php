@@ -24,7 +24,57 @@ return [
      */
     'url_ttl_minutes' => 60 * 24,
 
+    /*
+     * What a merchant may upload. Generous on purpose: a phone photograph is
+     * two to four megabytes and refusing it would mean refusing most
+     * photographs taken on most phones.
+     *
+     * It is no longer what customers download — see `variants` below, which
+     * is what stopped a four-megabyte original being sent to draw a
+     * four-hundred-pixel card.
+     */
     'max_size_kb' => 4096,
+
+    /*
+     * The size each kind of image is actually displayed at, keyed on the
+     * first segment of its storage path.
+     *
+     * Widths are roughly twice the on-screen size, which is what a modern
+     * phone's pixel density needs and where the returns stop. Quality is
+     * WebP's scale: below about 70 the edges of lettering on a menu start to
+     * smear, and above about 85 the file grows without anybody seeing a
+     * difference.
+     *
+     * Everything is scaled **down** only. A small logo is left alone rather
+     * than stretched.
+     */
+    'variants' => [
+        // Dish photographs, shown as a thumbnail beside a menu row.
+        'menu' => ['width' => 800, 'quality' => 78],
+
+        // The storefront carousel, which is the biggest thing on the page.
+        'storefront' => ['width' => 1400, 'quality' => 80],
+
+        // Named explicitly by the uploader, because a logo shares the
+        // storefront directory and does not need storefront dimensions.
+        'logo' => ['width' => 400, 'quality' => 82],
+
+        'banners' => ['width' => 1400, 'quality' => 80],
+        'collections' => ['width' => 1000, 'quality' => 80],
+        'categories' => ['width' => 600, 'quality' => 80],
+
+        // Small round tiles on the home screen.
+        'cuisines' => ['width' => 300, 'quality' => 82],
+
+        /*
+         * Proof that a delivery was left somewhere. Smaller and cheaper than
+         * the rest: it is looked at when something is disputed, which is
+         * rarely, and it is a doorway rather than a product photograph.
+         */
+        'door-photos' => ['width' => 1000, 'quality' => 72],
+    ],
+
+    'default_variant' => ['width' => 1200, 'quality' => 80],
 
     'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
 

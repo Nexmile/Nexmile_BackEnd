@@ -234,6 +234,44 @@ sudo systemctl restart php8.5-fpm nexmile-worker
 Run `php artisan config:clear` first if a changed `.env` value seems to be ignored —
 cached config does not re-read `.env`.
 
+## Images
+
+Uploads are resized and re-encoded to WebP on the way in, at the size they
+are actually displayed. Before this, whatever a merchant uploaded is what
+every customer downloaded — a four-megabyte phone photograph sent to draw a
+four-hundred-pixel card, which on a Tier-2 connection is most of a minute
+before the first screen settles.
+
+**The server needs the GD extension:**
+
+```bash
+php -m | grep -i '^gd$' || sudo apt install -y php8.5-gd && sudo systemctl restart php8.5-fpm
+```
+
+Without it nothing breaks — the optimiser catches the failure and stores the
+original, which is the right behaviour for a merchant adding a photo of
+tonight's special. But it also means a missing extension is **silent**, and
+the only sign is a warning in the log and images that stay large. Check for
+it rather than assuming.
+
+**Once, after deploying**, to shrink what was stored before the pipeline
+existed:
+
+```bash
+cd /var/www/nexmile
+sudo -u www-data php artisan nexmile:optimise-images --dry-run   # report only
+sudo -u www-data php artisan nexmile:optimise-images             # rewrite
+```
+
+The dry run prints how many bytes it would save. **The rewrite is in place
+and the originals are gone** — deliberately, since they are photographs of
+shops and dishes rather than assets anybody will re-crop, but it is why the
+dry run exists.
+
+KYC documents are **not** touched. They are identity papers read by a person
+deciding whether somebody may work, legibility is the whole point of them,
+and no customer downloads them.
+
 ## Timezone
 
 `APP_TIMEZONE=Asia/Kolkata`. **Not UTC**, and this matters more than it looks.

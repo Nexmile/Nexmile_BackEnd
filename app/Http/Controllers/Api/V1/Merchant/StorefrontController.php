@@ -47,6 +47,9 @@ class StorefrontController extends Controller
             self::IMAGE_COLUMNS[$data['type']],
             'storefront/'.$merchant->id,
             $request->file('file'),
+            // A logo shares this folder with the carousel and is shown at a
+            // fraction of the size, so it names its own settings.
+            $data['type'] === 'logo' ? 'logo' : 'storefront',
         );
 
         return response()->json([
