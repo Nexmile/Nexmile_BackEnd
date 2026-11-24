@@ -225,14 +225,39 @@ curl -i https://api.nexmile.in/.env
 ```bash
 cd /var/www/nexmile
 git pull origin master
-composer install --no-dev --optimize-autoloader
-php artisan migrate --force
-php artisan config:cache && php artisan route:cache
+
+# As ubuntu, which owns vendor/. --no-scripts matters: without it composer
+# runs `artisan package:discover` as ubuntu, which cannot write
+# bootstrap/cache, and the deploy "succeeds" with a stale package manifest.
+composer install --no-dev --optimize-autoloader --no-scripts
+
+# As www-data, which owns storage/ and bootstrap/cache.
+sudo -u www-data php artisan package:discover
+sudo -u www-data php artisan migrate --force
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan route:cache
+
 sudo systemctl restart php8.5-fpm nexmile-worker
 ```
 
-Run `php artisan config:clear` first if a changed `.env` value seems to be ignored —
-cached config does not re-read `.env`.
+**Two users, and the split is the whole reason this used to fail.** `vendor/`
+belongs to the person deploying; `storage/` and `bootstrap/cache` belong to
+the process serving requests. A command run as the wrong one does not stop the
+deploy — it prints a permission error in the middle of a wall of output and
+carries on, and the next sign of it is a feature that does nothing because the
+config it needs was never re-cached.
+
+That happened twice in one evening. It is why every artisan line above names
+its user explicitly rather than relying on whoever is logged in.
+
+If a `.env` change seems to be ignored, the cached config is why:
+
+```bash
+sudo -u www-data php artisan config:clear
+```
+
+Cached config never re-reads `.env`. With a cache in place, editing `.env` and
+restarting changes nothing at all.
 
 ## Images
 
