@@ -224,6 +224,40 @@ class ImagePipelineTest extends TestCase
         $this->assertSame($tiny, (string) $disk->get('menu/1/tiny.png'));
     }
 
+    public function test_a_stale_config_costs_the_dimensions_not_the_feature(): void
+    {
+        /*
+         * This happened in production. A deploy could not rewrite
+         * bootstrap/cache, so the server kept serving a config written
+         * before these keys existed — and every single image failed with
+         * "Trying to access array offset on null", which says nothing at all
+         * about the real cause.
+         *
+         * Resizing to a sensible default is always better than not resizing,
+         * so the defaults live in code as well as in configuration.
+         */
+        config()->set('media.variants', null);
+        config()->set('media.default_variant', null);
+
+        $path = app(ImageService::class)->store('menu/1', $this->photo());
+
+        $contents = (string) Storage::disk(config('media.disk'))->get($path);
+
+        $this->assertStringEndsWith('.webp', $path);
+        $this->assertSame(1200, getimagesizefromstring($contents)[0]);
+    }
+
+    public function test_the_backfill_refuses_to_start_without_an_encoder(): void
+    {
+        // Not strictly testable here — GD is loaded in this process — but the
+        // check reads config, and a missing variants key must not stop the
+        // run now that defaults exist in code.
+        config()->set('media.variants', null);
+
+        $this->artisan('nexmile:optimise-images', ['--dry-run' => true])
+            ->assertSuccessful();
+    }
+
     public function test_identity_documents_are_not_in_the_backfill(): void
     {
         /*

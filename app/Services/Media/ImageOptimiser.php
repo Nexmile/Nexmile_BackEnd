@@ -135,12 +135,31 @@ class ImageOptimiser
     {
         $key = strtolower(explode('/', trim($variant, '/'))[0] ?? '');
 
-        $variants = config('media.variants', []);
-        $settings = $variants[$key] ?? config('media.default_variant');
+        $variants = config('media.variants');
+        $settings = is_array($variants) ? ($variants[$key] ?? null) : null;
+        $settings ??= config('media.default_variant');
+
+        /*
+         * A literal last resort, not `config('media.default_variant')`.
+         *
+         * On a server running a cached config written before these keys
+         * existed, every lookup above returns null — and reading ['width']
+         * off null is a fatal that stopped the whole pipeline. It happened:
+         * a deploy could not rewrite bootstrap/cache, Laravel kept serving
+         * the old config, and every image failed with an array-offset error
+         * that said nothing about the real cause.
+         *
+         * Resizing to a sensible default is always better than not resizing,
+         * so the defaults live in code as well as in config. A stale cache
+         * should cost the right dimensions, not the feature.
+         */
+        if (! is_array($settings) || ! isset($settings['width'], $settings['quality'])) {
+            $settings = ['width' => 1200, 'quality' => 80];
+        }
 
         return [
-            'width' => (int) $settings['width'],
-            'quality' => (int) $settings['quality'],
+            'width' => max(1, (int) $settings['width']),
+            'quality' => min(100, max(1, (int) $settings['quality'])),
         ];
     }
 }

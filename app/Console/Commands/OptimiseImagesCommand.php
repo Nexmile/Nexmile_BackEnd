@@ -64,6 +64,25 @@ class OptimiseImagesCommand extends Command
         $only = $this->option('only');
         $disk = Storage::disk(config('media.disk'));
 
+        /*
+         * Checked before anything is read, because without it every single
+         * image fails for the same reason and the run prints that reason
+         * once per image — which is how 188 identical lines came to say
+         * nothing useful about a missing extension.
+         */
+        if (! extension_loaded('gd')) {
+            $this->error('The GD extension is not loaded, so nothing can be re-encoded.');
+            $this->line('  sudo apt install -y php8.5-gd && sudo systemctl restart php8.5-fpm');
+
+            return self::FAILURE;
+        }
+
+        if (! is_array(config('media.variants'))) {
+            $this->error('config/media.php has no variants. The config cache is stale.');
+            $this->line('  php artisan config:clear   (and fix bootstrap/cache permissions)');
+            $this->line('Continuing with built-in defaults.');
+        }
+
         if ($dry) {
             $this->warn('Dry run: nothing will be written.');
         }
@@ -73,6 +92,11 @@ class OptimiseImagesCommand extends Command
         $changed = 0;
         $skipped = 0;
         $failed = 0;
+
+        /** @var array<string, int> $reasons */
+        $reasons = [];
+        /** @var array<string, string> $examples */
+        $examples = [];
 
         foreach ($this->groups() as $name => $group) {
             if ($only !== null && $only !== $name) {
@@ -145,7 +169,16 @@ class OptimiseImagesCommand extends Command
                     }
                 } catch (Throwable $e) {
                     $failed++;
-                    $this->warn("  {$path}: {$e->getMessage()}");
+
+                    /*
+                     * Counted, not printed. When something is wrong it is
+                     * almost always wrong for every image, and a line each
+                     * buries the one fact that matters under hundreds of
+                     * copies of it.
+                     */
+                    $key = get_class($e).': '.$e->getMessage();
+                    $reasons[$key] = ($reasons[$key] ?? 0) + 1;
+                    $examples[$key] ??= $path;
                 }
             }
         }
@@ -165,7 +198,13 @@ class OptimiseImagesCommand extends Command
         }
 
         if ($failed > 0) {
+            $this->newLine();
             $this->warn("{$failed} could not be read or re-encoded. They are untouched.");
+
+            foreach ($reasons as $reason => $count) {
+                $this->line("  {$count}x  {$reason}");
+                $this->line("        e.g. {$examples[$reason]}");
+            }
         }
 
         return self::SUCCESS;
