@@ -6,6 +6,12 @@ The app side asked for seven things for the new profile page. Three are built
 here. The rest are recorded at the bottom with what each is waiting on, because
 two of them are waiting on something that is not code.
 
+**The profile picture is in [PROFILE_PHOTO.md](PROFILE_PHOTO.md)**, not here —
+`POST`/`DELETE /v1/profile/photo` and the `avatar_url` field. It is a separate
+document because it is the only part of this page that stores a file, and
+because it is the one place somebody will be tempted to reach for the rider's
+KYC photo and should not.
+
 ## 1. Preferences
 
 ```

@@ -98,6 +98,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+        // A profile picture. POST to set or replace, DELETE to go back to
+        // initials. Resized to 256px before it is stored, like every other
+        // image we keep.
+        Route::post('profile/photo', [ProfileController::class, 'photo'])->name('profile.photo');
+        Route::delete('profile/photo', [ProfileController::class, 'deletePhoto'])->name('profile.photo.destroy');
+
         // Veg mode and offer notifications. Against the account, so they
         // follow the customer to a new phone.
         Route::get('profile/preferences', [ProfileController::class, 'preferences'])->name('profile.preferences');

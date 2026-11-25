@@ -72,6 +72,17 @@ return [
          * rarely, and it is a doorway rather than a product photograph.
          */
         'door-photos' => ['width' => 1000, 'quality' => 72],
+
+        /*
+         * Somebody's own profile picture.
+         *
+         * The smallest thing we store, because it is drawn as a circle about
+         * forty pixels across in a menu and about a hundred and twenty at the
+         * top of the account screen. 256 covers the larger of those at twice
+         * the density with nothing to spare, and a selfie off a phone arrives
+         * at three thousand.
+         */
+        'avatars' => ['width' => 256, 'quality' => 82],
     ],
 
     'default_variant' => ['width' => 1200, 'quality' => 80],

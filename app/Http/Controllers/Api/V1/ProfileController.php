@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\Media\ImageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -73,6 +74,63 @@ class ProfileController extends Controller
 
         return response()->json([
             'message' => 'Profile updated.',
+            'data' => new UserResource($user->fresh()->load(['merchant', 'rider'])),
+        ]);
+    }
+
+    /**
+     * Set your profile picture
+     *
+     * Replaces whatever was there. Returns the whole profile rather than just
+     * the new URL, so the app has one shape to bind to and does not need a
+     * second call to refresh the account screen.
+     *
+     * The upload is resized to 256px and re-encoded before it reaches the
+     * bucket — a selfie off a phone is three or four megabytes and is drawn in
+     * a circle the width of a thumbnail.
+     */
+    public function photo(Request $request, ImageService $images): JsonResponse
+    {
+        $request->validate(
+            ['photo' => ImageService::rules()],
+            ImageService::messages('photo'),
+        );
+
+        $user = $request->user();
+
+        /*
+         * attach(), unlike the door photo, because nothing snapshots this
+         * path. An order copies the address photo and a rider may still be
+         * reading it an hour later, so that one cannot delete the old object
+         * straight away. An avatar is read live or not at all.
+         *
+         * forceFill inside attach() is also the point: avatar_path is not
+         * fillable, so it cannot be set from request input — see the
+         * migration.
+         */
+        $images->attach($user, 'avatar_path', 'avatars/'.$user->id, $request->file('photo'));
+
+        return response()->json([
+            'message' => 'Profile photo saved.',
+            'data' => new UserResource($user->fresh()->load(['merchant', 'rider'])),
+        ]);
+    }
+
+    /**
+     * Remove your profile picture
+     *
+     * Back to initials. The stored object is deleted too — a picture of
+     * somebody's face that they have asked us to drop should not sit in a
+     * bucket afterwards.
+     */
+    public function deletePhoto(Request $request, ImageService $images): JsonResponse
+    {
+        $user = $request->user();
+
+        $images->detach($user, 'avatar_path');
+
+        return response()->json([
+            'message' => 'Profile photo removed.',
             'data' => new UserResource($user->fresh()->load(['merchant', 'rider'])),
         ]);
     }
