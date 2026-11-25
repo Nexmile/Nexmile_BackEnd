@@ -201,6 +201,58 @@ class InternalServiceApiTest extends CartTest
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_a_cash_order_is_due_on_delivery_rather_than_unpaid(): void
+    {
+        /*
+         * Its own answer, not "unpaid", and the distinction is the point.
+         *
+         * A cash order that has not been paid for is not a problem — it is a
+         * cash order. A support system that reported it as unpaid would have
+         * somebody chasing a payment that was never due, and saying so to the
+         * customer would be an accusation.
+         */
+        $order = $this->placedOrder();
+        $this->service(['orders.read']);
+
+        $this->getJson("/api/internal/v1/orders/{$order->id}")
+            ->assertOk()
+            ->assertJsonPath('data.payment_state', 'due_on_delivery')
+            ->assertJsonPath('data.amount_paid', 0);
+    }
+
+    public function test_the_order_list_says_whether_each_one_is_still_live(): void
+    {
+        /*
+         * The support system has to tell "being cooked" from "delivered last
+         * Tuesday" to decide whether to ask which order somebody means.
+         *
+         * It is sent rather than inferred on purpose. The caller could hold
+         * its own list of which statuses count as finished, and that list
+         * would be right until somebody here adds a status — after which a
+         * live order reads as finished in another codebase, and nothing
+         * fails anywhere. The enum knows; this is it saying so.
+         */
+        $order = $this->placedOrder();
+        $this->service(['orders.read']);
+
+        $row = $this->getJson("/api/internal/v1/customers/{$order->user_id}/orders")
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertFalse($row['is_terminal']);
+        $this->assertSame($order->user_id, $row['customer_id']);
+        $this->assertNotEmpty($row['status_label']);
+
+        // And a finished one says so.
+        $order->forceFill(['status' => \App\Enums\OrderStatus::Delivered, 'delivered_at' => now()])->save();
+
+        $this->assertTrue(
+            $this->getJson("/api/internal/v1/customers/{$order->user_id}/orders")
+                ->assertOk()
+                ->json('data.0.is_terminal'),
+        );
+    }
+
     public function test_an_unknown_order_is_a_404(): void
     {
         $this->service(['orders.read']);

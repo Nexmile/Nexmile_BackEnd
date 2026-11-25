@@ -77,6 +77,41 @@ otherwise discover the typo in production.
 | POST | `/support-tickets` | `tickets.write` |
 | POST | `/refunds/eligibility-check` | `refunds.check` |
 
+### `payment_method` was null for months, and `payment_state` is why it matters
+
+`orders` has no `payment_method` column and never did. This endpoint read
+`$order->payment_method` from the day it was written, so it sent `null` every
+time. Nothing noticed, because nothing read it until an assistant started
+saying these facts out loud to customers. It now comes from the order's own
+payment row.
+
+Beside it, **`payment_state`** — one of `paid`, `part_paid`,
+`due_on_delivery`, `unpaid` — and `amount_paid`.
+
+`due_on_delivery` is deliberately not `unpaid`. A cash order that has not been
+paid for is not a problem; it is a cash order. Reporting it as unpaid would
+have support chasing money that was never due, and repeating that to the
+customer would be an accusation. It is derived from `cod_amount`, which is
+what checkout actually writes, so it stays true for a part-wallet cash order
+where the method alone would not tell you anything was still owed.
+
+### `/customers/{customer}/orders` carries two fields it did not need to
+
+Newest first, capped at 25, thin on purpose — enough to say "is it this one?".
+Each row also has **`is_terminal`** and **`customer_id`**, and each is there for
+one reason.
+
+`is_terminal` is so a caller can tell a live order from a finished one *without
+holding its own copy of our status vocabulary*. That copy would be correct
+right up until somebody here adds a status, after which a brand-new order
+reads as finished in a different codebase and nothing fails anywhere. The enum
+already knows, so it says.
+
+`customer_id` is redundant with the path on this endpoint, deliberately. It is
+also on `/orders/{order}`, where it is not redundant at all: a caller holding
+an order id from somewhere else can check it against the customer it believes
+it is serving, instead of trusting whatever handed it the id.
+
 ### Two departures from the blueprint's proposed names
 
 **Delivery status is keyed on the order, not the rider.** §9 proposes

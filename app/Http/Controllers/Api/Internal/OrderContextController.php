@@ -44,8 +44,13 @@ class OrderContextController extends Controller
      */
     public function order(Request $request, int $order): JsonResponse
     {
-        $model = Order::with(['merchant:id,business_name,city,business_phone', 'rider:id,full_name,vehicle_type'])
-            ->findOrFail($order);
+        $model = Order::with([
+            'merchant:id,business_name,city,business_phone',
+            'rider:id,full_name,vehicle_type',
+            // amountPaid() sums the loaded collection; loading it here keeps
+            // this one query rather than one per call site that forgot.
+            'payments:id,order_id,status,amount,method',
+        ])->findOrFail($order);
 
         $this->subject($request, 'order', $model->id);
 
@@ -59,8 +64,38 @@ class OrderContextController extends Controller
             'is_terminal' => $model->status->isTerminal(),
 
             'fulfilment_type' => $model->fulfilment_type,
-            'payment_method' => $model->payment_method,
+
+            /*
+             * From the payment row, not from the order.
+             *
+             * `orders` has no `payment_method` column and never has — this
+             * read `$model->payment_method` and so has been sending null
+             * since the endpoint was written. Nobody noticed because nothing
+             * consumed it until an assistant started reading these facts out
+             * to customers, which is a good argument for not shipping fields
+             * ahead of a reader.
+             */
+            'payment_method' => $model->payments->sortByDesc('id')->first()?->method,
+
             'grand_total' => (float) $model->grand_total,
+
+            /*
+             * Whether the money actually arrived, which `payment_method` does
+             * not answer — "upi" is an intention, not a receipt.
+             *
+             * Derived rather than stored: payment status lives on the payment
+             * rows, an order can have several attempts, and the only question
+             * support ever asks is "has this been paid for". Three answers,
+             * because "partly" is real: a part-wallet order captures the rest
+             * online and a failed attempt leaves the balance spent.
+             *
+             * It matters most on a cash order, where the honest answer is
+             * "not yet, they pay at the door" — and a support system that
+             * reported that as unpaid would have somebody chasing a payment
+             * that was never due.
+             */
+            'amount_paid' => round($model->amountPaid(), 2),
+            'payment_state' => $this->paymentState($model),
 
             'restaurant' => $model->merchant === null ? null : [
                 'id' => $model->merchant->id,
@@ -106,6 +141,22 @@ class OrderContextController extends Controller
      *
      * For after identity has been verified. Newest first, capped, and
      * deliberately thin: enough to say "is it this one?" and nothing more.
+     *
+     * `is_terminal` and `customer_id` are here for one reason each, and both
+     * are about the support system not having to guess.
+     *
+     * **`is_terminal`** so the caller can tell a live order from a finished
+     * one without knowing Nexmile's status vocabulary. It could infer it from
+     * a list of status strings held on its side, and that list would be
+     * correct until the day somebody here adds a status — at which point a
+     * brand-new order reads as finished in a different codebase and nothing
+     * fails loudly. The enum already knows; it should say.
+     *
+     * **`customer_id`** so the caller can check what it was given. It is
+     * redundant with the path on this endpoint and deliberately so: a support
+     * system holding an order id from anywhere else can compare this against
+     * the customer it believes it is serving, rather than trusting whatever
+     * handed it the id.
      */
     public function customerOrders(Request $request, int $customer): JsonResponse
     {
@@ -126,7 +177,10 @@ class OrderContextController extends Controller
         return response()->json(['data' => $orders->map(fn (Order $order) => [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'customer_id' => $order->user_id,
             'status' => $order->status->value,
+            'status_label' => __('portal.status.'.$order->status->value),
+            'is_terminal' => $order->status->isTerminal(),
             'restaurant' => $order->merchant?->business_name,
             'grand_total' => (float) $order->grand_total,
             'placed_at' => $order->placed_at,
@@ -219,6 +273,45 @@ class OrderContextController extends Controller
                 'updated_at' => $live['rider']['updated_at'] ?? null,
             ] : null,
         ]]);
+    }
+
+    /**
+     * Has this order been paid for?
+     *
+     * Three words rather than the payment table, because that is the whole
+     * of what a support conversation needs and because the alternative — a
+     * list of attempts with statuses — is something a caller would have to
+     * interpret, and interpreting it differently from us is how a customer
+     * gets told they owe money they have already paid.
+     *
+     * `due_on_delivery` is deliberately its own answer rather than "unpaid".
+     * A cash order that has not been paid for is not a problem; it is a cash
+     * order.
+     */
+    private function paymentState(Order $order): string
+    {
+        $paid = round($order->amountPaid(), 2);
+        $total = round((float) $order->grand_total, 2);
+        $wallet = round((float) $order->wallet_amount, 2);
+
+        if ($paid + $wallet >= $total) {
+            return 'paid';
+        }
+
+        if ($paid + $wallet > 0) {
+            return 'part_paid';
+        }
+
+        /*
+         * `cod_amount`, not the payment method.
+         *
+         * It is what checkout actually writes — the amount the rider is to
+         * collect — so it is true for a part-wallet cash order too, where
+         * the method alone would not tell you anything was still owed.
+         */
+        return (float) $order->cod_amount > 0
+            ? 'due_on_delivery'
+            : 'unpaid';
     }
 
     /**

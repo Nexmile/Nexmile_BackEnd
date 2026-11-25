@@ -306,6 +306,74 @@ class SupportBubbleTest extends TestCase
         $this->assertArrayNotHasKey('order_ref', $this->lastBody());
     }
 
+    /* -------------------------------------- choosing an order --------- */
+
+    public function test_a_customer_can_say_which_order_they_meant(): void
+    {
+        /*
+         * Sent when the assistant offered a choice and they tapped one. The
+         * order id goes across as a string, because an order reference
+         * crossing that boundary is an opaque handle and not a number for
+         * the other side to do arithmetic on.
+         */
+        $customer = $this->customer();
+        $order = $this->orderFor($customer);
+
+        Sanctum::actingAs($customer);
+
+        $this->postJson('/api/v1/support/conversations/conv-1/order', ['order_id' => $order->id])
+            ->assertOk();
+
+        $body = $this->lastBody();
+
+        $this->assertSame((string) $order->id, $body['order_id']);
+        $this->assertSame((string) $customer->id, $body['customer_ref']);
+    }
+
+    public function test_choosing_somebody_elses_order_is_refused_and_never_forwarded(): void
+    {
+        /*
+         * Refused rather than silently dropped, which is the opposite of
+         * what opening a thread does with a stale id — and deliberately so.
+         * There, dropping it means the customer still reaches support, which
+         * must never be the broken part. Here the order *is* the request:
+         * pinning nothing and answering 200 would leave the app showing a
+         * selection that did not happen.
+         */
+        $stranger = $this->customer('02');
+        $theirs = $this->orderFor($stranger);
+
+        Sanctum::actingAs($this->customer('03'));
+
+        $this->postJson('/api/v1/support/conversations/conv-1/order', ['order_id' => $theirs->id])
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'ORDER_NOT_FOUND');
+
+        // Never asked. The platform was not given the chance to decide.
+        $this->assertSame([], $this->sent());
+    }
+
+    public function test_choosing_an_order_needs_one(): void
+    {
+        Sanctum::actingAs($this->customer());
+
+        $this->postJson('/api/v1/support/conversations/conv-1/order', [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+    }
+
+    public function test_choosing_an_order_while_the_platform_is_down_says_so(): void
+    {
+        $customer = $this->customer();
+        $order = $this->orderFor($customer);
+
+        Sanctum::actingAs($customer);
+        $this->bpoDown();
+
+        $this->postJson('/api/v1/support/conversations/conv-1/order', ['order_id' => $order->id])
+            ->assertStatus(503);
+    }
+
     /* ------------------------------------------------- messages ------- */
 
     public function test_sending_answers_202_and_carries_the_client_id(): void

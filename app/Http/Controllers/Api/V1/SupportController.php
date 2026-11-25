@@ -181,6 +181,48 @@ class SupportController extends Controller
      * are no agents on shift today, so the reply window has to be honest and
      * changeable from the server.
      */
+    /**
+     * Say which order this conversation is about
+     *
+     * Sent when the customer taps one of the orders the assistant offered.
+     * The thread pins it and answers their original question against it, so
+     * the response comes back with `pending_reply` set the same way sending a
+     * message does — poll for the reply exactly as you already do.
+     *
+     * The order is resolved against the signed-in customer's own orders
+     * first. An id belonging to somebody else is a 404 here and never
+     * reaches the support platform.
+     */
+    public function selectOrder(Request $request, string $conversation): JsonResponse
+    {
+        $data = $request->validate([
+            'order_id' => ['required', 'integer'],
+        ]);
+
+        /*
+         * Refused rather than silently dropped, which is the opposite of what
+         * `store()` does with a stale order id — and deliberately so. There,
+         * dropping it means the customer still reaches support, which must
+         * never be the broken part. Here, the order *is* the request: pinning
+         * nothing and replying 200 would leave the app showing a selection
+         * that did not happen.
+         */
+        if ($this->ownOrder($request, $data['order_id']) === null) {
+            return response()->json([
+                'error' => ['code' => 'ORDER_NOT_FOUND', 'message' => 'No such order on your account.'],
+            ], 404);
+        }
+
+        $thread = $this->bpo->selectOrder($request->user(), $conversation, $data['order_id']);
+
+        return $thread === null
+            ? $this->unavailable()
+            : response()->json([
+                'data' => $thread['data'] ?? [],
+                'meta' => $thread['meta'] ?? [],
+            ]);
+    }
+
     public function handover(Request $request, string $conversation): JsonResponse
     {
         $thread = $this->bpo->handover($request->user(), $conversation);

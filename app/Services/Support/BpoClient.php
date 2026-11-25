@@ -86,6 +86,24 @@ class BpoClient
         ]));
     }
 
+    /**
+     * Say which order the thread is about.
+     *
+     * For when the assistant offered a choice and the customer tapped one.
+     * The order id goes across as-is and the BPO checks it against what we
+     * tell it this customer has — so a tampered id gets a 404 there as well
+     * as being filtered here.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function selectOrder(User $customer, string $id, int $orderId): ?array
+    {
+        return $this->post("conversations/{$id}/order", [
+            'customer_ref' => $this->ref($customer),
+            'order_id' => (string) $orderId,
+        ]);
+    }
+
     /** @return array<string, mixed>|null */
     public function handover(User $customer, string $id): ?array
     {

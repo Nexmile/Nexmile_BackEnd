@@ -24,6 +24,7 @@ All under `/v1/support`, all behind the customer's own Sanctum token.
 | `GET` | `/v1/support/conversations/{id}` | the thread with its messages |
 | `GET` | `/v1/support/conversations/{id}/messages` | `?after_id=` — only what is new |
 | `POST` | `/v1/support/conversations/{id}/messages` | send; answers **202** |
+| `POST` | `/v1/support/conversations/{id}/order` | say which order they meant; `{"order_id": 10432}` |
 | `POST` | `/v1/support/conversations/{id}/handover` | ask for a person |
 | `POST` | `/v1/support/conversations/{id}/close` | mark it resolved |
 | `POST` | `/v1/support/messages/{id}/feedback` | `{"value": "up"}` or `"down"` on an AI reply |
@@ -117,6 +118,64 @@ will not be stored twice, and if nothing is in flight and nothing has answered
 it, the server queues the reply again. That covers the one case polling cannot:
 a worker killed mid-job, which leaves no failure to catch and no reply that
 will ever arrive.
+
+## "Where is my order?" — the assistant finds the order itself
+
+The assistant used to know about exactly one order: whichever `order_id` was
+sent when the thread opened. Opening the bubble from the home screen meant it
+knew about none, so **every** "where is my order" was handed to a person. It
+now reads the customer's orders before answering.
+
+What that means for the app:
+
+**Do not ask the customer for an order number, and do not send them to their
+order history.** The assistant has the list. If it cannot see the order, it
+hands over.
+
+**One live order → it answers straight away.** No question, and the thread is
+pinned to that order, so follow-ups ("how long?") need nothing from you.
+
+**More than one → it asks, with buttons.** The reply carries `select_order`
+actions, one per order:
+
+```json
+{
+  "actions": [
+    { "code": "select_order", "order_id": "10432", "title": "Pizza Hut", "label": "The Pizza Hut order" },
+    { "code": "select_order", "order_id": "10433", "title": "KFC",       "label": "The KFC order" }
+  ]
+}
+```
+
+Render them as chips exactly like the other actions, and on tap:
+
+```
+POST /v1/support/conversations/{id}/order   {"order_id": 10432}
+```
+
+That pins the order **and asks the assistant to answer the original question
+again** — so the response carries `meta.pending_reply: true` and you poll for
+the reply exactly as you do after sending a message. `label` is already
+translated; `title` is the restaurant name if you want to build your own.
+
+**`order_id` is a string in the action and an integer in the request.** The
+action carries an opaque reference; the request is Nexmile's own order id.
+Send the integer.
+
+Refusals on that endpoint: **404** `ORDER_NOT_FOUND` if the order is not this
+customer's (checked here before anything is forwarded), **409** if the thread
+is closed, **503** if the platform or the order system is unreachable. On a
+503 the thread still works — the customer can type instead.
+
+### What the assistant is deliberately not told
+
+**The rider's phone number.** It does not cross the service boundary at all.
+Keep using the app's own masked call path behind the `call_rider` chip.
+
+**The rider's coordinates.** It gets the estimate and *how old the last fix
+is*, never a position — so it cannot tell somebody the rider is round the
+corner from a fix eleven minutes old. For a location it offers `track_order`
+and the live map does the honest version.
 
 ### unread, and what marks it read
 

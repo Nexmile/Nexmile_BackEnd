@@ -133,6 +133,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('support/conversations/{conversation}/messages', [SupportController::class, 'send'])
             ->middleware('throttle:support')->name('support.send');
 
+        // The customer tapping one of the orders the assistant offered.
+        // Throttled with sending, because it also asks for a reply.
+        Route::post('support/conversations/{conversation}/order', [SupportController::class, 'selectOrder'])
+            ->middleware('throttle:support')->name('support.order');
+
         Route::post('support/conversations/{conversation}/handover', [SupportController::class, 'handover'])->name('support.handover');
         Route::post('support/conversations/{conversation}/close', [SupportController::class, 'close'])->name('support.close');
         Route::post('support/messages/{message}/feedback', [SupportController::class, 'feedback'])->name('support.feedback');
