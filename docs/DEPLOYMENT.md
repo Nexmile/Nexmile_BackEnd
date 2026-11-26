@@ -222,17 +222,29 @@ curl -i https://api.nexmile.in/.env
 
 ## 11. Redeploying
 
+**Everything under `/var/www/nexmile` is owned by `www-data`, and every
+command below runs as `www-data`.** One owner, no exceptions — see the trap
+after this block for what the alternative cost.
+
 ```bash
 cd /var/www/nexmile
-git pull origin master
 
-# As ubuntu, which owns vendor/. --no-scripts matters: without it composer
-# runs `artisan package:discover` as ubuntu, which cannot write
-# bootstrap/cache, and the deploy "succeeds" with a stale package manifest.
-composer install --no-dev --optimize-autoloader --no-scripts
+# What we are on before, so the pull can be seen to have worked.
+sudo -u www-data git log --oneline -1
 
-# As www-data, which owns storage/ and bootstrap/cache.
+sudo -u www-data git pull origin master
+
+# What we are on after. If these two are the same, the pull did nothing and
+# everything below is about to run against the old code.
+sudo -u www-data git log --oneline -1
+
+# COMPOSER_HOME because www-data's home is not writable; without it composer
+# fails on its own cache directory. --no-scripts then an explicit
+# package:discover, so a failure in one is not buried in the other's output.
+sudo -u www-data COMPOSER_HOME=/tmp/composer \
+  composer install --no-dev --optimize-autoloader --no-scripts
 sudo -u www-data php artisan package:discover
+
 sudo -u www-data php artisan migrate --force
 sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
@@ -240,15 +252,62 @@ sudo -u www-data php artisan route:cache
 sudo systemctl restart php8.5-fpm nexmile-worker
 ```
 
-**Two users, and the split is the whole reason this used to fail.** `vendor/`
-belongs to the person deploying; `storage/` and `bootstrap/cache` belong to
-the process serving requests. A command run as the wrong one does not stop the
-deploy — it prints a permission error in the middle of a wall of output and
-carries on, and the next sign of it is a feature that does nothing because the
-config it needs was never re-cached.
+`route:cache` is not optional when routes changed. A new endpoint is a 404
+until it runs, and a 404 reads exactly like a backend that never shipped the
+feature — which is how an app developer ends up reporting a bug against a
+route that is sitting in the repository.
 
-That happened twice in one evening. It is why every artisan line above names
-its user explicitly rather than relying on whoever is logged in.
+### Check the commit moved. Twice now it did not.
+
+**On 24 November a `git pull` was run as `ubuntu`, and it changed the owner of
+`.git`.** Every deploy afterwards failed, and the failure looked like this:
+
+```
+fatal: detected dubious ownership in repository at '/var/www/nexmile'
+error: cannot open '.git/FETCH_HEAD': Permission denied
+```
+
+Git refuses to work on a repository owned by somebody else, and `www-data`
+could no longer write the files `ubuntu` had created. But the pull failing did
+not stop the rest of the script: `config:cache` reported success, PHP-FPM
+reloaded, and the deploy looked finished. The server sat **four commits
+behind for two days** and the first symptom was an artisan command "not
+defined" — followed by a route the customer app had been built against
+returning a 404, and a second application reading fields the API was not yet
+sending.
+
+The two fixes, in order:
+
+```bash
+# Tell git the repository is trusted, system-wide. NOT --global: that writes
+# to the running user's home, and www-data's home is not writable, so the fix
+# git itself suggests silently does nothing here.
+sudo git config --system --add safe.directory /var/www/nexmile
+
+# And put the ownership back where the rest of this document assumes it is.
+sudo chown -R www-data:www-data /var/www/nexmile
+```
+
+Then confirm, because this is cheap and the alternative is two days:
+
+```bash
+ls -ld /var/www/nexmile /var/www/nexmile/.git /var/www/nexmile/storage
+```
+
+All three must say `www-data www-data`.
+
+**Never run `git` in this directory as `ubuntu`.** A single pull as the wrong
+user is all it takes, it succeeds at the time, and it breaks every deploy
+after it.
+
+### Why every line names its user
+
+A command run as the wrong user does not stop the deploy. It prints a
+permission error in the middle of a wall of output and carries on, and the
+next sign of it is a feature that does nothing because the config it needs was
+never re-cached — or, as above, a repository that stopped updating entirely.
+
+That is why nothing here relies on whoever happens to be logged in.
 
 If a `.env` change seems to be ignored, the cached config is why:
 
