@@ -167,6 +167,26 @@ customer's (checked here before anything is forwarded), **409** if the thread
 is closed, **503** if the platform or the order system is unreachable. On a
 503 the thread still works — the customer can type instead.
 
+### Status answers do not depend on the AI being configured
+
+"Where is my order?" is a lookup, not a judgement — the order number, the
+restaurant and the status are already in hand. So it is answered from
+templates in all three languages, and that happens **even with no AI key
+configured, and when the model is rate limited, timed out or out of credit.**
+
+```
+Order NX261126LIJB from kishore food — on its way to you. Arriving in about 4 minutes.
+```
+
+It arrives as an ordinary `sender: "ai"` message with a `track_order` action.
+**Nothing special for the app to handle** — and it means the chat can be built
+and tested end to end before anybody pays for a model.
+
+When the AI is not available the thread is also handed to a person, so the
+customer gets the status immediately *and* a human still reads what they
+actually asked. The template only ever answers the status; it never decides
+anything.
+
 ### What the assistant is deliberately not told
 
 **The rider's phone number.** It does not cross the service boundary at all.
