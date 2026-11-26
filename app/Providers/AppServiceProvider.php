@@ -27,6 +27,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -98,16 +99,61 @@ class AppServiceProvider extends ServiceProvider
         });
 
         /*
-         * Same shape for payments. With no PAYMENT_GATEWAY set the fake is
-         * bound — nothing calls it, because checkout only offers cash when
-         * online payment is off, and it keeps local development and tests off
-         * the real Razorpay API.
+         * Which gateway takes money.
+         *
+         * This used to be `default => new FakeGateway`, and that default was
+         * a trap. `PAYMENT_GATEWAY=Razorpay`, or a trailing space in the
+         * `.env`, or `razorpay1` from a fat finger, all fell through to a
+         * gateway that issues pretend orders and a publishable key reading
+         * `rzp_test_fake` — on production, with no error anywhere. The app
+         * would open a checkout that cannot complete and the only symptom
+         * would be a customer saying money does not go in.
+         *
+         * So the vocabulary is now closed. A value we do not recognise is a
+         * misconfiguration, and a misconfiguration in the thing that takes
+         * money should stop the request, not quietly pretend.
          */
         $this->app->bind(PaymentGateway::class, function () {
-            return match (config('payments.gateway')) {
-                'razorpay' => new RazorpayGateway,
-                default => new FakeGateway,
-            };
+            $gateway = config('payments.gateway');
+
+            if ($gateway === 'razorpay') {
+                return new RazorpayGateway;
+            }
+
+            /*
+             * Cash only, which is a real and supported state.
+             *
+             * Nothing reaches this instance: `topup()` and both payment
+             * endpoints refuse on a null gateway before they use it. It is
+             * bound rather than left unresolvable so that injecting the
+             * contract does not fail on a cash-only deployment.
+             */
+            if ($gateway === null || $gateway === '') {
+                return new FakeGateway;
+            }
+
+            if ($gateway === 'fake') {
+                /*
+                 * Deliberate in tests and local work — the fake signs with a
+                 * real HMAC, so the verification path is genuinely exercised.
+                 * Never on production, where a gateway that approves its own
+                 * payments is a way to order food without paying.
+                 */
+                if (app()->isProduction()) {
+                    throw new RuntimeException(
+                        'PAYMENT_GATEWAY=fake on production. The fake gateway approves its own '
+                        .'payments and must never take real money. Set PAYMENT_GATEWAY=razorpay, '
+                        .'or leave it unset for cash only.'
+                    );
+                }
+
+                return new FakeGateway;
+            }
+
+            throw new RuntimeException(
+                "Unknown payment gateway [{$gateway}]. Use 'razorpay', or 'fake' outside "
+                .'production, or leave PAYMENT_GATEWAY unset for cash only.'
+            );
         });
     }
 
