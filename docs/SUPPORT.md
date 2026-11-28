@@ -109,6 +109,12 @@ forever, because a dead job would leave the phone polling all evening.
 **When nothing is outstanding, do not poll at all.** An idle thread that polls
 is a battery complaint and a bill.
 
+The poll's `meta` also carries **`language`** — the thread's current
+language, which can change mid-conversation when a customer writes in Tamil
+or Hindi. It is on the poll because that is the only call the app makes while
+somebody is typing; without it the app would not learn about a switch until it
+refetched the whole thread, which it has no reason to do.
+
 `meta.pending_reply` on the thread and on the poll says whether a job is in
 flight, so an app killed and reopened mid-answer can restore the typing
 indicator instead of showing a thread that looks finished.
@@ -206,6 +212,10 @@ sentence.
                {"code": "talk_to_person", "label": "Talk to someone"} ]
 }
 ```
+
+**`card.restaurant` is always a string**, never an object. The nested
+`restaurant.name` shape exists inside the service boundary and is flattened
+before it reaches you.
 
 **`card` is null on most messages** — customer messages, system notes, and
 any reply where no single order is settled. Draw it only when it is there.
