@@ -50,6 +50,7 @@ class OrderContextController extends Controller
             // amountPaid() sums the loaded collection; loading it here keeps
             // this one query rather than one per call site that forgot.
             'payments:id,order_id,status,amount,method',
+            'items:id,order_id,name,quantity,line_total',
         ])->findOrFail($order);
 
         $this->subject($request, 'order', $model->id);
@@ -129,6 +130,25 @@ class OrderContextController extends Controller
                 'delivered_at' => $model->delivered_at,
                 'cancelled_at' => $model->cancelled_at,
             ],
+
+            /*
+             * What they ordered.
+             *
+             * Half of what support is ever asked is about the food rather
+             * than the delivery — one missing, the wrong dish, a second
+             * biryani nobody ordered — and without the lines the answer to
+             * all of it was to hand over and ask somebody to look it up.
+             *
+             * Name, count and line total only. No options, no notes, no
+             * item ids: enough to say "two Mutton Biryani" back to a
+             * customer and recognise what they are describing, and not a
+             * copy of the basket.
+             */
+            'items' => $model->items->map(fn ($item) => [
+                'name' => $item->name,
+                'quantity' => (int) $item->quantity,
+                'line_total' => (float) $item->line_total,
+            ])->all(),
 
             // The drop area, never the address. Support resolves a problem;
             // it does not need to know which door.

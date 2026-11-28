@@ -253,6 +253,34 @@ class InternalServiceApiTest extends CartTest
         );
     }
 
+    public function test_the_order_carries_what_was_actually_ordered(): void
+    {
+        /*
+         * Half of what support is ever asked is about the food rather than
+         * the delivery — one missing, the wrong dish, a second biryani
+         * nobody ordered. Without the lines, the answer to all of it was to
+         * hand over and ask somebody to look it up.
+         *
+         * Name, count and line total. No options, no notes, no item ids:
+         * enough to say "two Chicken 65" back to a customer and recognise
+         * what they are describing, and not a copy of the basket.
+         */
+        $order = $this->placedOrder();
+        $this->service(['orders.read']);
+
+        $items = $this->getJson("/api/internal/v1/orders/{$order->id}")
+            ->assertOk()
+            ->json('data.items');
+
+        $this->assertNotEmpty($items);
+        $this->assertArrayHasKey('name', $items[0]);
+        $this->assertArrayHasKey('quantity', $items[0]);
+        $this->assertArrayHasKey('line_total', $items[0]);
+
+        // Not the whole row.
+        $this->assertArrayNotHasKey('id', $items[0]);
+        $this->assertArrayNotHasKey('options', $items[0]);
+    }
     public function test_distance_is_absent_until_the_rider_is_carrying_it(): void
     {
         /*
