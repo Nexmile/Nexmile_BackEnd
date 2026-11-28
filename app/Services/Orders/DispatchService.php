@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Enums\RiderStatus;
 use App\Models\Order;
 use App\Models\Rider;
+use Illuminate\Support\Facades\DB;
 use App\Services\Discovery\NearbyMerchantService;
 use App\Services\LiveState\DispatchQueueService;
 use App\Services\LiveState\RiderLocationService;
@@ -99,20 +100,39 @@ class DispatchService
      */
     public function accept(Rider $rider, Order $order): Order
     {
-        $this->guardRider($rider);
         $this->guardOrder($rider, $order);
 
-        $claimed = Order::query()
-            ->whereKey($order->id)
-            ->whereNull('rider_id')
-            ->where('status', OrderStatus::ReadyForPickup->value)
-            ->update([
-                'rider_id' => $rider->id,
-                // Written here too, so the customer's "finding a delivery
-                // partner" reads the same field whichever dispatch mode is
-                // running.
-                'dispatch_status' => DispatchStatus::Assigned->value,
-            ]);
+        /*
+         * Counted and claimed under a lock on the rider, because the two
+         * halves of "one order at a time" are a read and a write and
+         * anything between them is a second order.
+         *
+         * The claim below settles which *order* a race goes to — it writes
+         * only where `rider_id` is still null, so two riders tapping the
+         * same card produce one winner. It cannot settle which *rider*,
+         * because it is keyed on the order: one rider tapping two different
+         * cards in the same instant passes the count twice, claims twice,
+         * and carries two bags. Rare, and exactly the thing the rule exists
+         * to prevent — at 1 km the second customer's food goes cold while
+         * the first is delivered.
+         */
+        $claimed = DB::transaction(function () use ($rider, $order) {
+            Rider::whereKey($rider->id)->lockForUpdate()->first();
+
+            $this->guardRider($rider->fresh());
+
+            return Order::query()
+                ->whereKey($order->id)
+                ->whereNull('rider_id')
+                ->where('status', OrderStatus::ReadyForPickup->value)
+                ->update([
+                    'rider_id' => $rider->id,
+                    // Written here too, so the customer's "finding a delivery
+                    // partner" reads the same field whichever dispatch mode is
+                    // running.
+                    'dispatch_status' => DispatchStatus::Assigned->value,
+                ]);
+        });
 
         if ($claimed !== 1) {
             throw ValidationException::withMessages([

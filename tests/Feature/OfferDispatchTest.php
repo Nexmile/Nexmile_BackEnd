@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\Orders\OfferDispatchService;
 use App\Services\Push\PushService;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 /**
@@ -363,6 +364,58 @@ class OfferDispatchTest extends DispatchTest
         $this->assertSame(0, RiderOffer::where('order_id', $order->id)->count());
     }
 
+    public function test_a_rider_already_carrying_one_cannot_accept_a_second(): void
+    {
+        /*
+         * One rider, one order, no batching. The board path has had this
+         * test since dispatch was built; the offer path never did, and it is
+         * the path that actually runs.
+         *
+         * The claim statement settles which *order* a race goes to — it
+         * writes only where rider_id is still null. It cannot settle which
+         * *rider*, because it is keyed on the order, so the count and the
+         * claim are taken under a lock on the rider. Without it a rider with
+         * two cards up taps both and carries two bags, and at 1 km that is
+         * the second customer's food going cold while the first is
+         * delivered.
+         */
+        $rider = $this->rider();
+
+        $first = $this->acceptedOrder();
+        $offer = RiderOffer::where('order_id', $first->id)->where('rider_id', $rider->id)->firstOrFail();
+
+        Sanctum::actingAs($rider->user);
+        $this->postJson("/api/v1/rider/offers/{$offer->ulid}/accept")->assertOk();
+
+        /*
+         * A second offer, forced into existence. The dispatcher will not send
+         * one to a rider who is already carrying — that is tested above — so
+         * reaching the accept guard at all means writing the offer directly.
+         * This is the request a replayed tap or a stale card produces.
+         */
+        $second = $this->acceptedOrder();
+
+        $stale = RiderOffer::create([
+            'order_id' => $second->id,
+            'rider_id' => $rider->id,
+            'ulid' => (string) Str::ulid(),
+            'wave' => 1,
+            'status' => OfferStatus::Pending,
+            'offered_at' => now(),
+            'expires_at' => now()->addSeconds(30),
+        ]);
+
+        // acceptedOrder() signs in as the customer and then the shop to
+        // place and accept the order, so the rider has to be put back.
+        Sanctum::actingAs($rider->user);
+
+        $this->postJson("/api/v1/rider/offers/{$stale->ulid}/accept")
+            ->assertStatus(422)
+            ->assertJsonPath('errors.rider.0', 'Finish your current delivery first.');
+
+        $this->assertNull($second->fresh()->rider_id);
+        $this->assertSame(1, $rider->orders()->active()->count());
+    }
     // ------------------------------------------------------ first accept wins
 
     public function test_the_first_rider_to_accept_gets_it_and_the_second_is_refused(): void

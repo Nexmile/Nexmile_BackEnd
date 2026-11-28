@@ -11,6 +11,7 @@ use App\Jobs\CloseDispatchWave;
 use App\Models\Order;
 use App\Models\Rider;
 use App\Models\RiderOffer;
+use Illuminate\Support\Facades\DB;
 use App\Services\Discovery\NearbyMerchantService;
 use App\Services\LiveState\RiderLocationService;
 use App\Services\Push\OrderNotifier;
@@ -374,23 +375,35 @@ class OfferDispatchService
             $this->fail('offer', $this->endingFor($offer), $offer->status === OfferStatus::Cancelled ? 409 : 410);
         }
 
-        $this->guardRider($rider);
-
         /*
-         * The whole race, in one statement. `rider_id` is written only where
-         * it is still null and the order is still being searched for, so two
-         * riders tapping at the same instant produce one winner and one 409.
+         * Half the race is in the statement below: `rider_id` is written
+         * only where it is still null and the order is still being searched
+         * for, so two riders tapping the same card produce one winner and
+         * one 409.
+         *
+         * The other half is this lock. That statement is keyed on the
+         * order, so it cannot stop one rider tapping two *different* cards
+         * in the same instant — both reads see no active order, both claims
+         * succeed, and the rider carries two bags. At 1 km that is the
+         * second customer's food going cold while the first is delivered,
+         * which is the whole reason the rule exists.
          */
-        $claimed = Order::query()
-            ->whereKey($order->id)
-            ->whereNull('rider_id')
-            ->where('dispatch_status', DispatchStatus::Searching->value)
-            ->whereNotIn('status', Order::finishedStatuses())
-            ->update([
-                'rider_id' => $rider->id,
-                'dispatch_status' => DispatchStatus::Assigned->value,
-                'assigned_at' => now(),
-            ]);
+        $claimed = DB::transaction(function () use ($rider, $order) {
+            Rider::whereKey($rider->id)->lockForUpdate()->first();
+
+            $this->guardRider($rider->fresh());
+
+            return Order::query()
+                ->whereKey($order->id)
+                ->whereNull('rider_id')
+                ->where('dispatch_status', DispatchStatus::Searching->value)
+                ->whereNotIn('status', Order::finishedStatuses())
+                ->update([
+                    'rider_id' => $rider->id,
+                    'dispatch_status' => DispatchStatus::Assigned->value,
+                    'assigned_at' => now(),
+                ]);
+        });
 
         if ($claimed !== 1) {
             $this->fail('offer', 'Another rider took this order.', 409);
