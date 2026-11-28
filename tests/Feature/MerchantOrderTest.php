@@ -714,4 +714,84 @@ class MerchantOrderTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['newest_order_id']);
     }
+    /* ------------------------------------------- the pickup code ----- */
+
+    public function test_the_pickup_code_is_shown_while_the_rider_is_at_the_counter(): void
+    {
+        /*
+         * The bug, and it hid the code at exactly the wrong moment.
+         *
+         * The handover panel listed four statuses — ready_for_pickup,
+         * rider_assigned, picked_up, delivered — and missed
+         * reached_restaurant, which is the one where a rider is physically
+         * standing at the counter asking for the four digits. The restaurant
+         * had nothing to read out, and the rider's own screen refuses the
+         * pickup without it, so the order stopped there.
+         */
+        $user = $this->merchantUser();
+        $order = $this->order($user->merchant, OrderStatus::ReachedRestaurant);
+
+        $order->forceFill(['pickup_code' => '4821'])->save();
+
+        $this->actingAs($user)
+            ->get("/merchants/orders/{$order->id}")
+            ->assertOk()
+            ->assertSee('4821');
+    }
+
+    public function test_the_pickup_code_is_shown_through_the_whole_handover(): void
+    {
+        // Every stage from the food being ready to it being delivered. A new
+        // stage added later in the journey should be covered by default.
+        $user = $this->merchantUser();
+
+        foreach ([
+            OrderStatus::ReadyForPickup,
+            OrderStatus::RiderAssigned,
+            OrderStatus::ReachedRestaurant,
+            OrderStatus::PickedUp,
+            OrderStatus::ReachedCustomer,
+            OrderStatus::Delivered,
+        ] as $status) {
+            $order = $this->order($user->merchant, $status);
+            $order->forceFill(['pickup_code' => '7391'])->save();
+
+            $this->actingAs($user)
+                ->get("/merchants/orders/{$order->id}")
+                ->assertOk()
+                ->assertSee('7391', false);
+        }
+    }
+
+    public function test_the_pickup_code_is_not_shown_before_the_food_is_ready(): void
+    {
+        /*
+         * A code read out while the order is still being cooked is a code
+         * read to whoever is standing there, and the rider it belongs to has
+         * not been assigned yet.
+         */
+        $user = $this->merchantUser();
+
+        foreach ([OrderStatus::Placed, OrderStatus::Accepted, OrderStatus::Preparing] as $status) {
+            $order = $this->order($user->merchant, $status);
+            $order->forceFill(['pickup_code' => '1234'])->save();
+
+            $this->actingAs($user)
+                ->get("/merchants/orders/{$order->id}")
+                ->assertOk()
+                ->assertDontSee('1234');
+        }
+    }
+
+    public function test_a_cancelled_order_shows_no_pickup_code(): void
+    {
+        $user = $this->merchantUser();
+        $order = $this->order($user->merchant, OrderStatus::Cancelled);
+        $order->forceFill(['pickup_code' => '5566'])->save();
+
+        $this->actingAs($user)
+            ->get("/merchants/orders/{$order->id}")
+            ->assertOk()
+            ->assertDontSee('5566');
+    }
 }

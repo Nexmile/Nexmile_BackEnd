@@ -173,11 +173,13 @@
     @endif
 
     {{-- Handover. Shown from the moment the food is ready: the pickup code is
-         the proof that the right rider took the right order. --}}
-    @if (in_array($order->status, [
-        OrderStatus::ReadyForPickup, OrderStatus::RiderAssigned,
-        OrderStatus::PickedUp, OrderStatus::Delivered,
-    ], true))
+         the proof that the right rider took the right order.
+
+         The window is asked of the status itself rather than listed here.
+         The list this replaces named four stages and missed
+         reached_restaurant — the moment a rider is actually standing at the
+         counter asking for the code. --}}
+    @if ($order->status->isHandover())
         <div class="mt-8 {{ $card }}">
             <h2 class="font-bold text-white">{{ __('portal.orders.handover') }}</h2>
 
