@@ -244,6 +244,34 @@ There are no coordinates in the card, and there will not be. A distance is
 what the customer's own map already shows them; a position is not support's
 to hand out, and there is a test asserting none appears here.
 
+### Voice: read `spoken`, not `content`
+
+Every assistant and agent message may carry **`spoken`** — the same reply,
+written to be heard.
+
+**The rule is one line: speak `spoken` when it is there, otherwise speak
+`content`.** It is null whenever `content` is already fine to read aloud, so
+nothing is duplicated on the wire.
+
+It exists for two reasons a listener hits immediately.
+
+**Order numbers.** A text-to-speech engine reads `NX261126LIJB` as "N, X,
+two, six, one, one, two, six, L, I, J, B" — and it is the first thing in the
+sentence. It identifies nothing to somebody who already knows which order
+they asked about, so `spoken` says "your order" instead.
+
+**The card is silent.** Status and arrival time live beside the reply, not
+inside it, so somebody reading gets both and somebody listening gets "let me
+check your order status" and then nothing at all. `spoken` carries those
+facts in the sentence.
+
+The distance is deliberately left out of `spoken`: "two and a half
+kilometres" is a figure a listener has to convert into a time while the next
+sentence is already playing, and the time is in the line before it. It stays
+on the card for somebody who is reading.
+
+`content` is never altered. The screen still shows the order number.
+
 ### What the assistant is deliberately not told
 
 **The rider's phone number.** It does not cross the service boundary at all.
