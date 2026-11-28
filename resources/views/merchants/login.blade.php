@@ -48,6 +48,29 @@
             {{ __('portal.login.submit') }}
         </button>
 
+        {{--
+            What to do when you cannot get in.
+
+            Not a "forgot password" link, because a reset link needs mail and
+            a reset code needs SMS, and neither is configured. A link that
+            silently sent nothing would leave a restaurant waiting on an
+            email instead of ringing us, and they would be shut for the
+            evening before they worked out it was never coming.
+
+            So it says the true thing: call, and somebody will set a
+            temporary one. The number falls back to the contact page rather
+            than rendering an empty sentence if SUPPORT_PHONE is unset.
+        --}}
+        @php $supportPhone = config('site.support.phone'); @endphp
+
+        <p class="text-sm text-center text-gray-500">
+            @if ($supportPhone)
+                {{ __('portal.login.forgot', ['phone' => $supportPhone]) }}
+            @else
+                {{ __('portal.login.forgot_no_phone') }}
+            @endif
+        </p>
+
         <p class="text-sm text-center text-gray-400">
             {{ __('portal.login.no_account') }}
             <a href="{{ route('merchants.register') }}" class="text-brand-green font-semibold hover:underline">{{ __('portal.register.title') }}</a>

@@ -18,6 +18,11 @@ return [
         'intro' => 'Manage your documents, menu and orders.',
         'submit' => 'Sign in',
         'remember' => 'Keep me signed in',
+        // Not a reset link: there is no mail gateway and no SMS yet, so
+        // this says the true thing instead of offering a button that
+        // would silently send nothing.
+        'forgot' => 'Forgotten your password? Call Nexmile on :phone and we will set a temporary one.',
+        'forgot_no_phone' => 'Forgotten your password? Contact Nexmile and we will set a temporary one.',
         'no_account' => 'New to Nexmile?',
     ],
 

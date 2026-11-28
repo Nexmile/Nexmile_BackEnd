@@ -223,6 +223,38 @@ class MerchantPasswordTest extends TestCase
         ]));
     }
 
+    public function test_the_sign_in_page_says_what_to_do_when_you_are_locked_out(): void
+    {
+        /*
+         * A locked-out restaurant used to arrive at a form with no way
+         * forward and nothing telling them there was one. They would try
+         * the same password repeatedly and be shut for the evening.
+         *
+         * It is a sentence rather than a link on purpose — see the test
+         * below — so the sentence has to carry the number.
+         */
+        // A made-up number. The real support number lives in .env and is
+        // deliberately not in any tracked file.
+        config(['site.support.phone' => '9000000001']);
+
+        $this->get('/merchants/login')
+            ->assertOk()
+            ->assertSee('9000000001')
+            ->assertSee('Forgotten your password?');
+    }
+
+    public function test_the_sign_in_page_does_not_print_an_empty_sentence(): void
+    {
+        // With no number configured it still says to get in touch, rather
+        // than "Call Nexmile on  and we will set a temporary one."
+        config(['site.support.phone' => null]);
+
+        $this->get('/merchants/login')
+            ->assertOk()
+            ->assertSee('Contact Nexmile')
+            ->assertDontSee('Call Nexmile on  ');
+    }
+
     public function test_there_is_still_no_public_forgot_password_route(): void
     {
         /*
