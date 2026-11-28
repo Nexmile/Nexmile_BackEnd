@@ -253,6 +253,30 @@ class InternalServiceApiTest extends CartTest
         );
     }
 
+    public function test_distance_is_absent_until_the_rider_is_carrying_it(): void
+    {
+        /*
+         * Before pickup the rider is riding the other way — towards the
+         * kitchen — so reporting the kitchen-to-door distance as how far
+         * away they are would tell a customer their food is two kilometres
+         * off while the rider is in the next street.
+         *
+         * The field is sent as null rather than omitted, so a caller can
+         * tell "not carrying yet" from "this version does not send it".
+         */
+        $order = $this->placedOrder();
+        $this->service(['riders.read']);
+
+        $body = $this->getJson("/api/internal/v1/orders/{$order->id}/delivery-status")
+            ->assertOk()
+            ->json('data');
+
+        $this->assertArrayHasKey('distance_metres', $body);
+        $this->assertNull($body['distance_metres']);
+
+        // And no coordinates, because nobody is carrying it.
+        $this->assertNull($body['position']);
+    }
     public function test_an_unknown_order_is_a_404(): void
     {
         $this->service(['orders.read']);

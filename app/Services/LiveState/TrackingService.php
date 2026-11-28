@@ -381,6 +381,39 @@ class TrackingService
     }
 
     /**
+     * How far the rider still has to carry it, in metres.
+     *
+     * Only while they are actually carrying it. Before pickup the rider is
+     * riding the other way — towards the kitchen — and reporting the
+     * kitchen-to-door distance as how far away they are would tell a
+     * customer their food is two kilometres off when the rider has not
+     * collected it and is in the next street. Null, and whatever shows this
+     * leaves the line out.
+     *
+     * Straight line, not routed. It is a figure read on a support screen to
+     * the nearest hundred metres, and paying Google to refine it on every
+     * poll would cost more than the order makes.
+     */
+    public function remainingMetres(Order $order): ?int
+    {
+        if ($order->status->isTerminal() || $order->picked_up_at === null) {
+            return null;
+        }
+
+        $leg = $this->leg($order, $this->position($order));
+
+        if ($leg === null || $leg['moving'] === false) {
+            return null;
+        }
+
+        return (int) round($this->geo->distance(
+            $leg['from_lat'],
+            $leg['from_lng'],
+            $leg['to_lat'],
+            $leg['to_lng'],
+        ));
+    }
+    /**
      * The rider's ride to the restaurant, estimated from the straight line.
      *
      * Never routed. It is a short hop inside a 1 km zone, it changes every few

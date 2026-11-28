@@ -263,6 +263,20 @@ class OrderContextController extends Controller
             'rider_assigned' => $model->rider_id !== null,
             'rider_name' => $model->rider?->full_name,
             'estimated_minutes' => $live['estimated_minutes'] ?? null,
+
+            /*
+             * How far the rider still has to carry it, straight line.
+             *
+             * A distance is not a location. The position below is released
+             * only while the order is being carried and is deliberately not
+             * passed on to anything that talks to a customer; this number is
+             * safe to read out — "about two kilometres away" is what the
+             * customer's own map already shows them — and it is the one
+             * figure a support conversation actually needs from it.
+             *
+             * Null before pickup, because the rider is riding the other way.
+             */
+            'distance_metres' => $tracking->remainingMetres($model),
             'position' => isset($live['rider']['latitude']) ? [
                 'latitude' => $live['rider']['latitude'],
                 'longitude' => $live['rider']['longitude'],

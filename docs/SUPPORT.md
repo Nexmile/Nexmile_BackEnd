@@ -187,6 +187,53 @@ customer gets the status immediately *and* a human still reads what they
 actually asked. The template only ever answers the status; it never decides
 anything.
 
+### The order card
+
+An assistant reply about a settled order carries a `card` beside its
+`content` — the facts, for you to lay out, rather than buried in the
+sentence.
+
+```json
+{
+  "sender": "ai",
+  "content": "Sorry for the delay! Let me check your order status.",
+  "card": {
+    "order_number": "NX10245", "order_id": "10245", "restaurant": "kishore food",
+    "status": "picked_up", "status_label": "on its way to you",
+    "eta_minutes": 15, "distance_metres": 2500, "rider_name": "Murugan"
+  },
+  "actions": [ {"code": "track_order", "order_id": "10245", "label": "Track it"},
+               {"code": "talk_to_person", "label": "Talk to someone"} ]
+}
+```
+
+**`card` is null on most messages** — customer messages, system notes, and
+any reply where no single order is settled. Draw it only when it is there.
+
+**Every field inside it is optional and absent when unknown**, never empty.
+An order sitting in a kitchen has no `eta_minutes` and no `distance_metres`.
+Drawing "Estimated delivery: —" reads as a broken screen; drawing nothing
+reads as nothing to say, which is the truth.
+
+**Row headings are yours.** "Order status", "Rider location", "Estimated
+delivery" are chrome and belong in the app's own translations. What is ours
+is `status_label`, already in the thread's language — an app that maps
+statuses to words is an app we break by adding a status. `status` is sent
+alongside it so you can pick an icon or a colour without parsing text.
+
+**`distance_metres` is how far the rider still has to carry it, and is
+absent until they are carrying it.** Before pickup the rider is riding the
+other way, towards the kitchen, so "2 km away" would be the wrong two
+kilometres.
+
+**`tracking_stale: true`** appears when the rider's last position fix is
+over ten minutes old. Grey the distance rather than presenting a
+quarter-hour-old figure as current.
+
+There are no coordinates in the card, and there will not be. A distance is
+what the customer's own map already shows them; a position is not support's
+to hand out, and there is a test asserting none appears here.
+
 ### What the assistant is deliberately not told
 
 **The rider's phone number.** It does not cross the service boundary at all.
