@@ -40,7 +40,7 @@ class TrackingService
     /**
      * The live part of a tracking response.
      *
-     * @return array{rider: array<string, mixed>|null, estimated_minutes: int|null, route: string|null}
+     * @return array{rider: array<string, mixed>|null, estimated_minutes: int|null, route: string|null, route_starts_at: string|null, next_stop: string|null}
      */
     public function for(Order $order): array
     {
@@ -48,11 +48,36 @@ class TrackingService
         $leg = $this->leg($order, $position);
 
         $route = $leg === null ? null : $this->route($order, $leg);
+        $carrying = $order->picked_up_at !== null;
 
         return [
             'rider' => $this->rider($order, $position),
             'estimated_minutes' => $this->minutes($order, $position, $route),
             'route' => $route['polyline'] ?? null,
+
+            /*
+             * What the line actually joins, said out loud.
+             *
+             * It used to be a polyline and nothing else, so an app had to
+             * assume — and assuming it began at the rider is reasonable and
+             * wrong. Before pickup this is the kitchen-to-door leg: the
+             * journey the *food* takes, which is what somebody watching
+             * wants to see. The rider is riding the other way at that point,
+             * and drawing their path would show a line moving away from the
+             * person waiting for it. It also does not move while they fetch,
+             * which is why it caches, which is most of the maps bill.
+             *
+             * Null when there is no route to describe.
+             */
+            'route_starts_at' => $route === null ? null : ($carrying ? 'rider' : 'restaurant'),
+
+            /*
+             * Where the rider is going next, which is a different question
+             * from where the line ends and has a different answer for the
+             * whole time the food is being cooked. The dotted direction line
+             * an app falls back to should point here.
+             */
+            'next_stop' => $order->status->isTerminal() ? null : ($carrying ? 'customer' : 'restaurant'),
         ];
     }
 

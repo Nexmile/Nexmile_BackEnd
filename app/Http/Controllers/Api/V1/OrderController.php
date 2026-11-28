@@ -131,8 +131,37 @@ class OrderController extends Controller
                  * Google's encoded overview polyline, ready to draw. Null
                  * whenever there is no route to give, which the app treats
                  * as "show the markers, skip the line" rather than an error.
+                 * Never a two-point straight line — if there is no road
+                 * route, there is no route.
                  */
                 'route' => $live['route'],
+
+                /*
+                 * What that line joins: 'restaurant' or 'rider'.
+                 *
+                 * Sent because an app that has only a polyline has to guess,
+                 * and the reasonable guess — that it starts where the rider
+                 * is — is wrong for the whole time the food is being cooked.
+                 * One customer app measured "how far away is my rider" along
+                 * this line, found the rider at its end, and showed 0.0 km
+                 * while they were a kilometre and a half out.
+                 *
+                 * Before pickup the line is the kitchen-to-door leg: the
+                 * journey the food takes, which is what somebody watching
+                 * wants to see, and which does not move while the rider
+                 * fetches it — that is why it caches, and the cache is most
+                 * of the maps bill.
+                 */
+                'route_starts_at' => $live['route_starts_at'],
+
+                /*
+                 * Where the rider is heading: 'restaurant' before pickup,
+                 * 'customer' after, null once it is over. A different
+                 * question from where the line ends, with a different answer
+                 * for the whole of the preparing stage. A dotted fallback
+                 * line should point here.
+                 */
+                'next_stop' => $live['next_stop'],
 
                 /*
                  * Published so both apps and the backend share one idea of

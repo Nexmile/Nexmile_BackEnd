@@ -267,6 +267,68 @@ class LiveTrackingTest extends DispatchTest
             ->assertJsonPath('data.estimated_minutes', 8);
     }
 
+    public function test_the_response_says_what_the_route_joins(): void
+    {
+        /*
+         * A real bug, found on a live order. The response was a polyline and
+         * nothing else, so the customer app assumed it started where the
+         * rider was — a reasonable guess, and wrong for the whole time the
+         * food is being cooked. It measured "how far away is my rider" along
+         * that line, found the rider at its end, and showed "0.0 km away"
+         * while they were a kilometre and a half out.
+         *
+         * Before pickup the line is the kitchen-to-door leg: the journey the
+         * food takes, which is what somebody watching wants to see, and
+         * which does not move while the rider fetches it. Saying so costs a
+         * field and removes the guess.
+         */
+        config(['tracking.route.enabled' => true]);
+
+        $this->mock(RouteProvider::class, function ($mock) {
+            $mock->shouldReceive('between')->andReturn([
+                'polyline' => 'yzlcAkr}bMpG}C', 'duration_seconds' => 480, 'distance_metres' => 1600,
+            ]);
+        });
+
+        $this->positionIs();
+        [$order, $customer, $rider] = $this->assignedOrder();
+
+        Sanctum::actingAs($customer);
+        $this->getJson("/api/v1/orders/{$order->id}/track")
+            ->assertOk()
+            ->assertJsonPath('data.route_starts_at', 'restaurant')
+            // Where the rider is going is a different question, with a
+            // different answer, for the whole of this stage.
+            ->assertJsonPath('data.next_stop', 'restaurant');
+
+        $this->pickUp($order, $rider);
+
+        Sanctum::actingAs($customer);
+        $this->getJson("/api/v1/orders/{$order->id}/track")
+            ->assertOk()
+            ->assertJsonPath('data.route_starts_at', 'rider')
+            ->assertJsonPath('data.next_stop', 'customer');
+    }
+
+    public function test_nothing_describes_a_route_that_is_not_there(): void
+    {
+        // An app that drew a dotted line "to the restaurant" because the
+        // field said so, with no line to draw, would be worse off than
+        // before the field existed.
+        config(['tracking.route.enabled' => false]);
+
+        $this->positionIs();
+        [$order, $customer] = $this->assignedOrder();
+
+        Sanctum::actingAs($customer);
+        $this->getJson("/api/v1/orders/{$order->id}/track")
+            ->assertOk()
+            ->assertJsonPath('data.route', null)
+            ->assertJsonPath('data.route_starts_at', null)
+            // next_stop stands on its own: the rider is still going
+            // somewhere whether or not we can draw the way there.
+            ->assertJsonPath('data.next_stop', 'restaurant');
+    }
     public function test_a_route_is_computed_once_and_reused_across_polls(): void
     {
         /*

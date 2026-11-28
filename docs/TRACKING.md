@@ -9,6 +9,39 @@ endpoint's are not — a wrong timestamp shows a rider frozen in a street they
 left ten minutes ago, and an uncached route turns one dinner into a hundred
 billed Directions calls.
 
+## What the route joins, and why it is not always the rider
+
+`route` is an encoded polyline or null. **It does not always start where the
+rider is**, and the response says which:
+
+| field | before pickup | after pickup |
+| --- | --- | --- |
+| `route_starts_at` | `restaurant` | `rider` |
+| `next_stop` | `restaurant` | `customer` |
+
+Both are null-safe: `route_starts_at` is null whenever `route` is, and
+`next_stop` is null once the order is over.
+
+**Before pickup the line is the kitchen-to-door leg** — the journey the food
+takes. The rider is riding the *other* way at that point, towards the
+kitchen, and drawing their path would show a line moving away from the person
+waiting for it. That leg also does not move while they fetch, which is why it
+caches, and the cache is most of the maps bill.
+
+**`next_stop` is a different question from where the line ends**, with a
+different answer for the whole time the food is being cooked. A dotted
+fallback line should point at `next_stop`, not at the end of `route`.
+
+These two fields exist because of a real bug. The response used to be a
+polyline and nothing else, so the customer app assumed it began at the rider
+— a reasonable guess — measured "how far away is my rider" along it, found
+the rider at its end, and showed **"0.0 km away"** while they were a
+kilometre and a half out.
+
+**`route` is never a two-point straight line.** If there is no road route
+there is no route, and the app shows markers without a line.
+
+
 ## The rider app: sending position
 
 `POST /v1/rider/location`
