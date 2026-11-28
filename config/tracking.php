@@ -26,8 +26,18 @@ return [
 
         'enabled' => env('TRACKING_ROUTE_ENABLED', false),
 
-        // 'google' needs services.google_maps.key, on a key restricted to the
-        // backend's IP and to Directions. Anything else draws no route.
+        /*
+         * 'routes'    — the Routes API. Use this one.
+         * 'google'    — the legacy Directions API, for a project that still
+         *               has it enabled. Google lists it as legacy and a
+         *               project created today generally cannot turn it on.
+         * 'null'      — no route; the map falls back to a straight line.
+         *
+         * Either Google driver needs services.google_maps.key, on a key
+         * restricted to this server's IP address and to that API alone. It
+         * is a server key and must never reach an app — there is a test
+         * asserting it is never rendered.
+         */
         'driver' => env('TRACKING_ROUTE_DRIVER', 'null'),
 
         'timeout_seconds' => 4,

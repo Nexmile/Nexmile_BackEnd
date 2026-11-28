@@ -10,6 +10,7 @@ use App\Contracts\SmsSender;
 use App\Services\Discovery\RoadDistance\GoogleDistanceMatrix;
 use App\Services\Discovery\RoadDistance\NullRoadDistance;
 use App\Services\LiveState\Routing\GoogleDirections;
+use App\Services\LiveState\Routing\GoogleRoutes;
 use App\Services\LiveState\Routing\NullRoute;
 use App\Services\Payments\FakeGateway;
 use App\Services\Payments\RazorpayGateway;
@@ -24,6 +25,7 @@ use Dedoc\Scramble\Support\Generator\OpenApi;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -92,9 +94,38 @@ class AppServiceProvider extends ServiceProvider
          * map, never blank it while somebody waits for dinner.
          */
         $this->app->bind(RouteProvider::class, function () {
-            return match (config('tracking.route.driver')) {
-                'google' => new GoogleDirections,
-                default => new NullRoute,
+            $driver = config('tracking.route.driver');
+
+            return match ($driver) {
+                /*
+                 * The current API, and the one to use. It has a TWO_WHEELER
+                 * mode, which matters at one kilometre — the legacy provider
+                 * could only ask for driving and overstated every journey.
+                 */
+                'routes' => new GoogleRoutes,
+
+                /*
+                 * The legacy Directions API, kept for a project that already
+                 * has it enabled. A Google Cloud project created today
+                 * generally cannot enable it at all, so this is not an
+                 * option to reach for on a new deployment.
+                 */
+                'google', 'directions' => new GoogleDirections,
+
+                'null', '', null => new NullRoute,
+
+                /*
+                 * A driver nobody implemented. Logged rather than thrown:
+                 * the customer's map degrades to a straight line and an
+                 * estimate, which is a worse map but a working one, and a
+                 * typo in an env file should not take tracking down. The
+                 * line in the log is how it gets noticed, because the
+                 * degraded map looks exactly like a route not configured.
+                 */
+                default => tap(new NullRoute, fn () => Log::error(
+                    'Unknown route driver; no route will be drawn.',
+                    ['driver' => $driver, 'known' => ['routes', 'google', 'null']],
+                )),
             };
         });
 

@@ -41,10 +41,68 @@ they were given.
 
 ## Live tracking
 
-The route drawn on a customer's tracking map is a Directions call, and it
-is read every few seconds by every waiting customer. It is capped by a
-per-order cache rather than by how often anyone asks — see
-[TRACKING.md](TRACKING.md), which is where the cost decisions live.
+The route drawn on a customer's tracking map is one routing call, read every
+few seconds by every waiting customer. It is capped by a per-order cache
+rather than by how often anyone asks — see [TRACKING.md](TRACKING.md), which
+is where the cost decisions live.
+
+## Routes, and which API to enable
+
+**Enable the Routes API, not Directions.** Google lists the Directions API as
+legacy, and a Google Cloud project created today generally cannot turn it on
+at all. Both are supported here; only one is worth choosing.
+
+```env
+TRACKING_ROUTE_ENABLED=true
+TRACKING_ROUTE_DRIVER=routes
+GOOGLE_MAPS_SERVER_KEY=...
+```
+
+| driver | API | Use it? |
+| --- | --- | --- |
+| `routes` | Routes API | **Yes.** |
+| `google` | Directions (legacy) | Only if your project already has it enabled. |
+| `null` | none | Straight line and an estimate. The default. |
+
+Billing has to be on, and the key wants restricting to this server's IP
+addresses and to that one API.
+
+**Why `routes` matters beyond being current: it has a `TWO_WHEELER` mode.**
+Directions does not, so the legacy provider asks for driving and overstates
+every journey — a scooter takes lanes and turns a car cannot, and over one
+kilometre that difference is most of the trip. It also asks for
+`HIGH_QUALITY` polylines, because the simplified default cuts corners through
+buildings at this scale and makes the rider look lost on the map.
+
+An unknown driver name logs an error and draws no route. It does not throw: a
+typo in an env file should not take a customer's tracking map down, but the
+degraded map looks exactly like a route that was never configured, so that log
+line is the only way anyone notices.
+
+### What the apps get
+
+Nothing changes in either app when this is switched on — both already read
+these shapes and fall back to a dotted straight line without them.
+
+`GET /v1/rider/orders/{id}/route` answers `503` while no key is configured,
+and otherwise:
+
+```json
+{ "data": { "target": "pickup", "polyline": "...", "distance_metres": 2410,
+  "duration_seconds": 540,
+  "steps": [ { "instruction": "Turn left onto Anna Salai", "maneuver": "TURN_LEFT",
+    "distance_metres": 350, "duration_seconds": 60,
+    "end_latitude": 9.9201, "end_longitude": 78.1210 } ] } }
+```
+
+`maneuver` is null on steps that are not turns — "head north", "you have
+arrived" — so an app that assumes an icon for every step draws a wrong one.
+Instructions arrive as plain text; the provider's markup is stripped here
+rather than in the app, because an app that renders our HTML is an app we can
+break by changing providers.
+
+`/v1/orders/{id}/track` carries the same encoded polyline for the rider's
+current leg.
 
 ## Road distance
 
