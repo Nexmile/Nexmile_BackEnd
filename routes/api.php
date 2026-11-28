@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\Rider\PayoutController as RiderPayoutController;
 use App\Http\Controllers\Api\V1\Rider\ProfileController as RiderProfileController;
 use App\Http\Controllers\Api\V1\Rider\ReferralController as RiderReferralController;
 use App\Http\Controllers\Api\V1\RiderReportController;
+use App\Http\Controllers\Api\V1\SpeechController;
 use App\Http\Controllers\Api\V1\SupportController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\WebhookController;
@@ -141,6 +142,23 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('support/conversations/{conversation}/handover', [SupportController::class, 'handover'])->name('support.handover');
         Route::post('support/conversations/{conversation}/close', [SupportController::class, 'close'])->name('support.close');
         Route::post('support/messages/{message}/feedback', [SupportController::class, 'feedback'])->name('support.feedback');
+
+        /*
+         * Speaking to the assistant, and hearing it answer.
+         *
+         * On the server because the speech key is billed per second of
+         * audio and a key inside an APK is a key anyone can pull out of
+         * it. Neither endpoint talks to the assistant: audio becomes
+         * words, the app sends those words as an ordinary message, and
+         * reads the reply back. Voice and text stay one conversation.
+         *
+         * 503 when no provider is configured, which tells the app to use
+         * the handset rather than to show an error.
+         */
+        Route::post('speech/transcribe', [SpeechController::class, 'transcribe'])
+            ->middleware('throttle:speech')->name('speech.transcribe');
+        Route::post('speech/speak', [SpeechController::class, 'speak'])
+            ->middleware('throttle:speech')->name('speech.speak');
 
         /*
         |----------------------------------------------------------------------

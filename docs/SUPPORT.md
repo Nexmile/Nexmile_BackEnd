@@ -272,6 +272,41 @@ on the card for somebody who is reading.
 
 `content` is never altered. The screen still shows the order number.
 
+### Speaking and listening, on the server
+
+Two endpoints, both needing the customer's own token:
+
+```
+POST /v1/speech/transcribe   multipart: audio, language?   -> { text, language }
+POST /v1/speech/speak        { text, language }            -> { audio (base64), format }
+```
+
+**Neither talks to the assistant.** Audio becomes words; the app then sends
+those words to `/v1/support/conversations/{id}/messages` exactly as if they
+had been typed, and reads the reply back through `speak`. That keeps voice
+and text **one conversation** — one history, one order lookup, one handover —
+rather than a second assistant that happens to listen.
+
+**Send `spoken`, not `content`, to `speak`.** It is the version written to be
+heard: no order numbers for a speech engine to spell out letter by letter.
+
+**`language` on `transcribe` is a hint, and the answer may differ.** A
+customer whose app is in English often speaks Tamil, and the reply says which
+was actually heard — feed that back as the thread's language.
+
+**Both answer `503` with `SPEECH_UNAVAILABLE` when no provider is
+configured.** That is not an error to show anybody: it means use the
+handset's own recogniser and voice, which is what the app does today. The
+only thing lost is better Tamil and Tanglish.
+
+Audio is capped at 512 KB and replies at 600 characters, both billed by the
+second or the character; speech is rate limited per customer separately from
+messages.
+
+**The key stays on the server.** That is the whole reason these exist rather
+than the app calling the provider directly — a key inside an APK is a key
+anyone can pull out of it, and this one is metered.
+
 ### What the assistant is deliberately not told
 
 **The rider's phone number.** It does not cross the service boundary at all.

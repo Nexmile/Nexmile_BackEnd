@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Contracts\PushSender;
 use App\Contracts\RoadDistanceProvider;
 use App\Contracts\RouteProvider;
+use App\Contracts\SpeechProvider;
 use App\Contracts\SmsSender;
 use App\Services\Discovery\RoadDistance\GoogleDistanceMatrix;
 use App\Services\Discovery\RoadDistance\NullRoadDistance;
@@ -13,6 +14,8 @@ use App\Services\LiveState\Routing\GoogleDirections;
 use App\Services\LiveState\Routing\GoogleRoutes;
 use App\Services\LiveState\Routing\NullRoute;
 use App\Services\Payments\FakeGateway;
+use App\Services\Speech\NullSpeech;
+use App\Services\Speech\SarvamSpeech;
 use App\Services\Payments\RazorpayGateway;
 use App\Services\Push\FcmPushSender;
 use App\Services\Push\LogPushSender;
@@ -93,6 +96,27 @@ class AppServiceProvider extends ServiceProvider
          * estimate from the straight line — a missing key must degrade the
          * map, never blank it while somebody waits for dinner.
          */
+        /*
+         * Speech, on the server rather than the handset.
+         *
+         * Unset means the app uses Android's own recogniser and voice,
+         * which already works — so an unknown driver falls back there too,
+         * loudly in the log. Refusing to boot over a typo would take the
+         * whole chat down to lose a feature the phone can do itself.
+         */
+        $this->app->bind(SpeechProvider::class, function () {
+            $driver = config('speech.provider');
+
+            return match ($driver) {
+                'sarvam' => new SarvamSpeech,
+                'null', '', null => new NullSpeech,
+                default => tap(new NullSpeech, fn () => Log::error(
+                    'Unknown speech provider; the app will use the handset.',
+                    ['provider' => $driver, 'known' => ['sarvam', 'null']],
+                )),
+            };
+        });
+
         $this->app->bind(RouteProvider::class, function () {
             $driver = config('tracking.route.driver');
 
@@ -206,6 +230,16 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('support', fn (Request $request) => Limit::perMinute(
             (int) config('support.messages_per_minute')
         )->by((string) $request->user()?->id));
+
+        /*
+         * Speech is the most expensive thing per request this platform
+         * does — billed by the second of audio — and the app puts a
+         * microphone button on screen that a child can lean on. Keyed on
+         * the customer, so one phone cannot spend everybody's budget.
+         */
+        RateLimiter::for('speech', fn (Request $request) => Limit::perMinute(
+            (int) config('speech.rate_limit_per_minute')
+        )->by((string) $request->user()?->id));
     }
 
     /**
@@ -247,7 +281,11 @@ class AppServiceProvider extends ServiceProvider
                     'api/v1/feedback',
                     // The support bubble. Proxied to the BPO platform, but it
                     // is the customer app that calls it.
-                    'api/v1/support'],
+                    'api/v1/support',
+
+                    // Speaking to the assistant and hearing it answer.
+                    // Shared with the rider app one day; customer only today.
+                    'api/v1/speech'],
             ],
             'rider' => [
                 'title' => 'Nexmile — Rider app',
