@@ -68,6 +68,39 @@
         </p>
     @endif
 
+    @error('password')
+        <p class="mt-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 text-sm">{{ $message }}</p>
+    @enderror
+
+    {{--
+        Shown once and never again. Not stored, not emailed — read it to them
+        over the phone and they change it when they sign in. If it is missed,
+        it is reset again rather than looked up.
+    --}}
+    @if ($reset = session('password_reset'))
+        <div class="mt-4 rounded-xl border-2 border-brand-green bg-brand-green/10 px-5 py-4">
+            <h2 class="text-sm font-bold text-white">{{ $reset['name'] }} can sign in now</h2>
+            <p class="mt-1 text-sm text-gray-400">
+                Read these to them. <strong class="text-white">The password is shown once</strong> —
+                it is not stored anywhere and cannot be shown again.
+            </p>
+            <dl class="mt-3 grid gap-1 text-sm">
+                <div class="flex gap-2">
+                    <dt class="w-28 text-gray-500">Sign in with</dt>
+                    <dd class="font-mono text-white">{{ $reset['email'] ?: $reset['phone'] }}</dd>
+                </div>
+                <div class="flex gap-2">
+                    <dt class="w-28 text-gray-500">Password</dt>
+                    <dd class="font-mono font-bold text-brand-green">{{ $reset['password'] }}</dd>
+                </div>
+            </dl>
+            <p class="mt-2 text-xs text-gray-500">
+                Every device they were signed in on has been signed out. Ask them to change this
+                from Details once they are in.
+            </p>
+        </div>
+    @endif
+
     {{-- ─────────────────────── Why it is or isn't open ──────────────────── --}}
     <div class="mt-8 {{ $card }}">
         <h2 class="font-semibold text-white">Can it take an order right now?</h2>
@@ -532,6 +565,28 @@
                 An expired licence blocks the restaurant from opening whatever their KYC status —
                 a lapsed food licence is a legal problem, not a warning.
             </p>
+        </form>
+    </div>
+
+    {{-- ─────────────────────── Locked out ───────────────────────────────── --}}
+    <div class="mt-8 {{ $card }}">
+        <h2 class="font-semibold text-white">Signed out and cannot get back in</h2>
+        <p class="mt-1 text-sm text-gray-500 max-w-2xl leading-relaxed">
+            There is no self-service reset, and that is deliberate rather than missing: a reset
+            link needs mail and a reset code needs SMS, and neither is configured yet. A button
+            that silently sends nothing is worse than no button — a restaurant cannot tell a
+            broken system from a slow one, and stops trading while they wait.
+            <strong class="text-white">Check who you are speaking to first.</strong> This hands
+            over working access to a business.
+        </p>
+
+        <form method="POST" action="{{ route('admin.merchants.password', $merchant->id) }}" class="mt-4"
+              onsubmit="return confirm('Reset the password for {{ $merchant->business_name }}? Every device they are signed in on will be signed out.');">
+            @csrf
+            <button type="submit"
+                    class="px-5 py-2.5 rounded-lg border border-white/20 text-white text-sm font-bold hover:border-brand-green transition">
+                Set a temporary password
+            </button>
         </form>
     </div>
 

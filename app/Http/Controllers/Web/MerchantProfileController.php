@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Merchant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 /**
@@ -61,6 +63,42 @@ class MerchantProfileController extends Controller
         $this->merchant($request)->update($data);
 
         return back()->with('status', __('portal.profile.saved'));
+    }
+
+    /**
+     * Change your own password.
+     *
+     * The other half of an administrator being able to reset one. Without
+     * this, a merchant who has been given a temporary password over the
+     * phone keeps it forever, and the person who read it out still knows it.
+     *
+     * There is no self-service "forgot password" and cannot be one yet: a
+     * reset link needs mail, which is not configured, and a reset code needs
+     * SMS, which is waiting on DLT registration. A link that silently goes
+     * to a log file would be worse than no link at all — the merchant would
+     * wait for an email that was never sent. Until one of those exists, a
+     * locked-out merchant rings Nexmile and an administrator resets it.
+     */
+    public function password(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'string', Password::min(10), 'confirmed'],
+        ], [
+            'current_password.current_password' => __('portal.profile.password_wrong'),
+        ]);
+
+        $request->user()->forceFill(['password' => $data['password']])->save();
+
+        /*
+         * Other sessions are closed. A password is usually changed because
+         * somebody else knows the old one — a shared till tablet, a member of
+         * staff who has left — and leaving their session signed in makes the
+         * change decorative.
+         */
+        Auth::logoutOtherDevices($data['password']);
+
+        return back()->with('status', __('portal.profile.password_saved'));
     }
 
     protected function merchant(Request $request): Merchant

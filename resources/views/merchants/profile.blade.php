@@ -160,6 +160,50 @@
         </button>
     </form>
 
+    {{--
+        Changing your own password, and the only way to do it.
+
+        There is no "forgot password" link and cannot be one yet: a reset link
+        needs mail, which is not configured, and a reset code needs SMS, which
+        is waiting on DLT. A link that silently goes to a log file is worse
+        than no link, because a merchant cannot tell a broken system from a
+        slow one and stops trading while they wait.
+    --}}
+    <div class="{{ $card }} mt-10 space-y-5">
+        <div>
+            <h2 class="text-xl font-bold text-white">{{ __('portal.profile.password_title') }}</h2>
+            <p class="mt-1 text-sm text-gray-500">{{ __('portal.profile.password_hint') }}</p>
+        </div>
+
+        <form method="POST" action="{{ route('merchants.profile.password') }}" class="space-y-4">
+            @csrf
+
+            <div>
+                <label for="current_password" class="block text-sm text-gray-400">{{ __('portal.profile.password_current') }}</label>
+                <input id="current_password" name="current_password" type="password" required autocomplete="current-password"
+                       class="mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 text-white">
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm text-gray-400">{{ __('portal.profile.password_new') }}</label>
+                <input id="password" name="password" type="password" required autocomplete="new-password"
+                       class="mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 text-white">
+            </div>
+
+            <div>
+                <label for="password_confirmation" class="block text-sm text-gray-400">{{ __('portal.profile.password_repeat') }}</label>
+                <input id="password_confirmation" name="password_confirmation" type="password" required autocomplete="new-password"
+                       class="mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 text-white">
+            </div>
+
+            <button type="submit" class="px-6 py-3 rounded-lg border border-white/20 text-white font-bold hover:border-brand-green transition">
+                {{ __('portal.profile.password_save') }}
+            </button>
+        </form>
+
+        <p class="text-xs text-gray-600">{{ __('portal.profile.password_forgot') }}</p>
+    </div>
+
 </section>
 
 @endsection

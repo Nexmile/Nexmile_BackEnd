@@ -136,6 +136,19 @@ return [
         'pincode_invalid' => 'Enter a valid 6-digit PIN code.',
         'save' => 'Save details',
         'saved' => 'Details saved.',
+
+        // Changing your own password. There is no "forgot password" link:
+        // a reset needs mail or SMS and neither is configured, so a
+        // locked-out merchant rings Nexmile and an administrator resets it.
+        'password_title' => 'Your password',
+        'password_hint' => 'At least 10 characters. If Nexmile gave you a temporary one, change it here.',
+        'password_current' => 'Current password',
+        'password_new' => 'New password',
+        'password_repeat' => 'Repeat the new password',
+        'password_save' => 'Change password',
+        'password_saved' => 'Password changed. Any other device signed in as you has been signed out.',
+        'password_wrong' => 'That is not your current password.',
+        'password_forgot' => 'Forgotten it? Call Nexmile and we will set a temporary one for you.',
     ],
 
     'storefront' => [

@@ -10,9 +10,11 @@ use App\Models\Order;
 use App\Models\RefreshToken;
 use App\Services\Merchant\EarningsService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -171,6 +173,63 @@ class MerchantController extends Controller
     /**
      * One restaurant, whole.
      */
+    /**
+     * Give a locked-out merchant a way back in.
+     *
+     * A temporary password an administrator reads to them over the phone,
+     * shown once and stored nowhere.
+     *
+     * **This exists instead of a "forgot password" link, not alongside one.**
+     * A reset link needs mail, which is not configured — `MAIL_MAILER`
+     * defaults to `log`, so the link would land in a file on the server while
+     * the merchant waited for an email that was never sent. A reset code
+     * needs SMS, which is waiting on DLT registration. Both of those are a
+     * button that silently does nothing, which is worse than no button: the
+     * merchant cannot tell a broken system from a slow one, and stops
+     * trading in the meantime.
+     *
+     * So: they ring Nexmile, somebody verifies who they are the way a person
+     * does, and this hands over a password they change on first sign-in.
+     * When mail exists this becomes the fallback rather than the only path.
+     */
+    public function resetPassword(Request $request, Merchant $merchant): RedirectResponse
+    {
+        $user = $merchant->user;
+
+        if ($user === null) {
+            return back()->withErrors(['password' => 'This restaurant has no sign-in account.']);
+        }
+
+        /*
+         * Twelve characters from a cryptographic source, no symbols.
+         * Readable enough to dictate down a phone line to somebody standing
+         * in a kitchen, and long enough that dictating it does not matter —
+         * it is changed on first sign-in.
+         */
+        $password = Str::password(12, symbols: false);
+
+        $user->forceFill(['password' => $password])->save();
+
+        /*
+         * Every existing session and API token is killed. A reset is usually
+         * requested because access has been lost or shared, and leaving the
+         * old sessions signed in makes the reset decorative.
+         */
+        $user->tokens()->delete();
+        RefreshToken::where('user_id', $user->id)->delete();
+
+        /*
+         * Flashed to this one response and stored nowhere — not in a
+         * database, not in the log. A temporary password written down is a
+         * permanent credential in a table nobody is watching.
+         */
+        return back()->with('password_reset', [
+            'name' => $merchant->business_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'password' => $password,
+        ]);
+    }
     public function show(Request $request, Merchant $merchant): View
     {
         $data = $request->validate([

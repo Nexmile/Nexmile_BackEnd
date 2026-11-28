@@ -94,6 +94,10 @@ Route::prefix('merchants')->name('merchants.')->group(function () {
         Route::get('profile', [MerchantProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('profile', [MerchantProfileController::class, 'update'])->name('profile.update');
 
+        // Change your own password. The other half of an administrator
+        // being able to reset one.
+        Route::post('profile/password', [MerchantProfileController::class, 'password'])->name('profile.password');
+
         /*
          * Menu (EP3). A merchant may build their menu before verification —
          * it only becomes visible to customers once the account is verified,
@@ -270,6 +274,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // number would make verification pointless.
         Route::post('merchants/{id}/terms', [AdminController::class, 'updateTerms'])->name('merchants.terms');
         Route::post('merchants/{id}/compliance', [AdminController::class, 'updateCompliance'])->name('merchants.compliance');
+
+        /*
+         * A temporary password for a locked-out merchant, read to them over
+         * the phone. There is no self-service reset: a link needs mail and a
+         * code needs SMS, and neither is configured — see the controller.
+         */
+        Route::post('merchants/{merchant}/password', [AdminMerchantController::class, 'resetPassword'])
+            ->name('merchants.password');
 
         Route::prefix('orders')->name('orders.')->whereNumber('order')->group(function () {
             Route::get('/', [AdminOrderController::class, 'index'])->name('index');
