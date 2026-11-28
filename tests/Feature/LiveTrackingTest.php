@@ -267,6 +267,59 @@ class LiveTrackingTest extends DispatchTest
             ->assertJsonPath('data.estimated_minutes', 8);
     }
 
+    public function test_the_map_has_both_ends_before_there_is_a_rider(): void
+    {
+        /*
+         * The failure a screenshot caught. The tracking screen had only a
+         * rider position — filled only while the food is being carried — and
+         * a polyline that needs a maps key. On an order still being cooked,
+         * with no key, that is nothing at all, so the map drew a placeholder
+         * while the order progressed perfectly well underneath it.
+         *
+         * Both pins mean it can always show the real thing: the food is
+         * being cooked here, and it is coming to there.
+         */
+        config(['tracking.route.enabled' => false]);
+
+        [$order, $customer] = $this->assignedOrder();
+
+        // Nobody carrying it, and no route to draw. Written straight to
+        // the row: assignment also touches dispatch state, and this test is
+        // about an order nobody has been found for yet.
+        \App\Models\Order::whereKey($order->id)
+            ->update(['rider_id' => null, 'picked_up_at' => null, 'assigned_at' => null]);
+
+        Sanctum::actingAs($customer);
+        $body = $this->getJson("/api/v1/orders/{$order->id}/track")->assertOk()->json('data');
+
+        $this->assertNull($body['rider']);
+        $this->assertNull($body['route']);
+
+        // And still enough to draw a map.
+        $this->assertNotNull($body['restaurant']['latitude']);
+        $this->assertNotNull($body['restaurant']['longitude']);
+        $this->assertNotEmpty($body['restaurant']['name']);
+        $this->assertNotNull($body['destination']['latitude']);
+        $this->assertNotNull($body['destination']['longitude']);
+    }
+
+    public function test_the_destination_is_coordinates_and_not_an_address(): void
+    {
+        /*
+         * The customer's own address, sent to the customer — the same
+         * coordinates they chose at checkout. Not the street, though: the
+         * map needs a pin, and a tracking poll is not where an address
+         * belongs when the order screen already has it.
+         */
+        [$order, $customer] = $this->assignedOrder();
+
+        Sanctum::actingAs($customer);
+        $destination = $this->getJson("/api/v1/orders/{$order->id}/track")
+            ->assertOk()
+            ->json('data.destination');
+
+        $this->assertSame(['latitude', 'longitude'], array_keys($destination));
+    }
     public function test_the_response_says_what_the_route_joins(): void
     {
         /*

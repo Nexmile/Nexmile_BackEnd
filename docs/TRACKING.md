@@ -9,6 +9,34 @@ endpoint's are not — a wrong timestamp shows a rider frozen in a street they
 left ten minutes ago, and an uncached route turns one dinner into a hundred
 billed Directions calls.
 
+## The map always has two pins
+
+`restaurant` and `destination` are on every track response, both as
+coordinates, and `restaurant` carries the name as well.
+
+```json
+"restaurant":  { "name": "kishore food", "latitude": 9.9195, "longitude": 78.1193 },
+"destination": { "latitude": 9.9250, "longitude": 78.1300 }
+```
+
+**Draw the map from these, not from the rider.** `rider` is null until
+somebody is assigned and carries a position only while the food is actually
+being carried, and `route` needs a maps key. On an order still being cooked,
+with no key configured, those are both empty — which is how a tracking screen
+ends up showing a placeholder while the order progresses perfectly well
+underneath it.
+
+With both pins the map can always say the true thing: the food is being
+cooked here, and it is coming to there. Fit the camera to the two of them,
+add the rider when there is one, and draw the route over the top when there
+is one.
+
+`destination` is coordinates only. The address is already on the order
+screen, and a tracking poll running every few seconds is not where it
+belongs. It is the customer's own address being sent to that customer — a
+different decision from the service API, which gets only `delivery_area`
+because that is a support platform reading about somebody else.
+
 ## What the route joins, and why it is not always the rider
 
 `route` is an encoded polyline or null. **It does not always start where the

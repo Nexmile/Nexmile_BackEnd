@@ -177,6 +177,41 @@ class OrderController extends Controller
                  * their own business, not the customer's.
                  */
                 'rider' => $live['rider'],
+
+                /*
+                 * The two ends of the journey, so the map has something to
+                 * draw before there is a rider or a route.
+                 *
+                 * Without these the tracking screen had only a rider
+                 * position — filled only while the food is being carried —
+                 * and a polyline that needs a maps key. On an order still
+                 * being cooked, with no key, that is nothing at all, and the
+                 * map showed a placeholder while the order was progressing
+                 * perfectly well underneath it.
+                 *
+                 * Both pins let it always show the real thing: the food is
+                 * being cooked here, and it is coming to there.
+                 */
+                'restaurant' => $model->merchant === null ? null : array_filter([
+                    'name' => $model->merchant->business_name,
+                    'latitude' => $model->merchant->latitude === null ? null : (float) $model->merchant->latitude,
+                    'longitude' => $model->merchant->longitude === null ? null : (float) $model->merchant->longitude,
+                ], fn ($value) => $value !== null),
+
+                /*
+                 * The customer's own address, sent to the customer. It is
+                 * where they asked for their food — the same coordinates
+                 * they chose at checkout — and it is the one pin the map
+                 * cannot work without.
+                 *
+                 * Deliberately not the same decision as the service API,
+                 * which gets only `delivery_area`: that is a support
+                 * platform reading about somebody else.
+                 */
+                'destination' => $model->delivery_latitude === null ? null : [
+                    'latitude' => (float) $model->delivery_latitude,
+                    'longitude' => (float) $model->delivery_longitude,
+                ],
             ],
         ]);
     }
