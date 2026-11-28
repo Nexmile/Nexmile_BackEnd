@@ -21,6 +21,22 @@ return [
         // Not a reset link: there is no mail gateway and no SMS yet, so
         // this says the true thing instead of offering a button that
         // would silently send nothing.
+        'reset_title' => 'Reset your password',
+        'reset_intro' => 'We will email you a six digit code. It is valid for five minutes.',
+        'reset_email' => 'The email you sign in with',
+        'reset_send' => 'Email me a code',
+        'reset_back' => 'Back to sign in',
+        // The same words whether or not the address is known. A form that
+        // says "no such account" is a way to find out which restaurants
+        // are on Nexmile, one guess at a time, with no login.
+        'reset_sent' => 'If that email belongs to a restaurant on Nexmile, a code is on its way.',
+        'reset_throttled' => 'Too many attempts. Try again in an hour.',
+        'reset_code_title' => 'Enter your code',
+        'reset_code_intro' => 'Check your inbox, including spam. The code lasts five minutes.',
+        'reset_code' => 'Six digit code',
+        'reset_submit' => 'Set my new password',
+        'reset_resend' => 'Send a new code',
+        'reset_done' => 'Password changed. Sign in with your new one.',
         'forgot' => 'Forgotten your password? Call Nexmile on :phone and we will set a temporary one.',
         'forgot_no_phone' => 'Forgotten your password? Contact Nexmile and we will set a temporary one.',
         'no_account' => 'New to Nexmile?',

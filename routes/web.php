@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\MerchantMenuController;
 use App\Http\Controllers\Web\MerchantOptionController;
 use App\Http\Controllers\Web\MerchantOrderController;
 use App\Http\Controllers\Web\MerchantPortalController;
+use App\Http\Controllers\Web\MerchantPasswordResetController;
 use App\Http\Controllers\Web\MerchantProfileController;
 use App\Http\Controllers\Web\MerchantReviewController;
 use App\Http\Controllers\Web\MerchantStorefrontController;
@@ -73,6 +74,19 @@ Route::prefix('merchants')->name('merchants.')->group(function () {
         Route::post('register', [MerchantPortalController::class, 'register'])->name('register.submit');
         Route::get('login', [MerchantPortalController::class, 'showLogin'])->name('login');
         Route::post('login', [MerchantPortalController::class, 'login'])->name('login.submit');
+
+        /*
+         * Letting yourself back in with a code to your own inbox.
+         *
+         * The controller 404s the whole flow when no mail gateway is
+         * configured, because MAIL_MAILER defaults to `log` and a form that
+         * says "check your email" and writes to a file on the server would
+         * have a restaurant waiting all evening instead of ringing us.
+         */
+        Route::get('forgot-password', [MerchantPasswordResetController::class, 'show'])->name('password.forgot');
+        Route::post('forgot-password', [MerchantPasswordResetController::class, 'send'])->name('password.email');
+        Route::get('reset-password', [MerchantPasswordResetController::class, 'edit'])->name('password.reset');
+        Route::post('reset-password', [MerchantPasswordResetController::class, 'update'])->name('password.update');
     });
 
     Route::middleware(['auth', 'role:merchant'])->group(function () {

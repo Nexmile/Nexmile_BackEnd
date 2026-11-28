@@ -21,8 +21,18 @@ class OtpService
      *
      * @throws ValidationException when throttled
      */
-    public function request(string $identifier, string $intendedRole = 'customer', ?string $ip = null): OtpCode
-    {
+    public function request(
+        string $identifier,
+        string $intendedRole = 'customer',
+        ?string $ip = null,
+        /*
+         * Why the code was sent. A reset code must not be usable to sign
+         * in, and a sign-in code must not set a password — they are both
+         * six digits to the same inbox, and without this they would be
+         * interchangeable.
+         */
+        string $purpose = 'login',
+    ): OtpCode {
         $identifier = $this->normalise($identifier);
 
         $this->guardResendCooldown($identifier);
@@ -44,7 +54,7 @@ class OtpService
             'identifier' => $identifier,
             'channel' => $channel,
             'code_hash' => Hash::make($code),
-            'purpose' => 'login',
+            'purpose' => $purpose,
             'intended_role' => $intendedRole,
             'expires_at' => now()->addSeconds(config('otp.ttl_seconds')),
             'ip_address' => $ip,
@@ -55,6 +65,57 @@ class OtpService
         return $otp;
     }
 
+    /**
+     * Is this code right, for this identifier and this purpose?
+     *
+     * Deliberately separate from `verify()`, which creates the account when
+     * it does not exist — correct when a code *is* the sign-in, and
+     * catastrophic for a password reset, where it would mint a merchant
+     * account for any address somebody typed.
+     *
+     * This finds nobody and creates nobody. It answers one question and
+     * burns the code when the answer is yes.
+     *
+     * @throws ValidationException when the code is wrong, expired or exhausted
+     */
+    public function check(string $identifier, string $code, string $purpose): bool
+    {
+        $identifier = $this->normalise($identifier);
+
+        $otp = OtpCode::where('identifier', $identifier)
+            ->where('purpose', $purpose)
+            ->whereNull('consumed_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if ($otp === null) {
+            $this->fail('This code has expired. Please request a new one.');
+        }
+
+        /*
+         * The attempt ceiling, checked before the comparison. Five guesses
+         * at six digits is one in two hundred thousand; unlimited guesses is
+         * a matter of minutes.
+         */
+        if ($otp->attempts >= (int) config('otp.max_attempts')) {
+            $otp->forceFill(['consumed_at' => now()])->save();
+
+            $this->fail('Too many incorrect attempts. Please request a new code.');
+        }
+
+        $otp->increment('attempts');
+
+        if (! Hash::check($code, $otp->code_hash)) {
+            $this->fail('That code is not correct.');
+        }
+
+        // Once used it cannot be used again, however quickly somebody
+        // replays the request.
+        $otp->forceFill(['consumed_at' => now()])->save();
+
+        return true;
+    }
     /**
      * Check a code and return the user it belongs to, creating the account on
      * first login.

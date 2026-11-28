@@ -61,15 +61,36 @@
             temporary one. The number falls back to the contact page rather
             than rendering an empty sentence if SUPPORT_PHONE is unset.
         --}}
-        @php $supportPhone = config('site.support.phone'); @endphp
+        @php
+            $supportPhone = config('site.support.phone');
+            $canReset = \App\Http\Controllers\Web\MerchantPasswordResetController::available();
+        @endphp
 
-        <p class="text-sm text-center text-gray-500">
-            @if ($supportPhone)
-                {{ __('portal.login.forgot', ['phone' => $supportPhone]) }}
-            @else
-                {{ __('portal.login.forgot_no_phone') }}
-            @endif
-        </p>
+        {{--
+            A link when a code can actually be sent, and the phone number
+            when it cannot.
+
+            MAIL_MAILER defaults to `log`, which writes the message to a file
+            on the server and reports success — so a link offered then would
+            have a restaurant waiting all evening for a code that was never
+            posted, instead of picking up the phone. The link appears the
+            moment mail is configured and needs no release to do it.
+        --}}
+        @if ($canReset)
+            <p class="text-sm text-center">
+                <a href="{{ route('merchants.password.forgot') }}" class="text-brand-green font-semibold hover:underline">
+                    {{ __('portal.login.reset_title') }}
+                </a>
+            </p>
+        @else
+            <p class="text-sm text-center text-gray-500">
+                @if ($supportPhone)
+                    {{ __('portal.login.forgot', ['phone' => $supportPhone]) }}
+                @else
+                    {{ __('portal.login.forgot_no_phone') }}
+                @endif
+            </p>
+        @endif
 
         <p class="text-sm text-center text-gray-400">
             {{ __('portal.login.no_account') }}
